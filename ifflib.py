@@ -2,6 +2,7 @@
 
 import struct
 import os
+import io
 from pathlib import Path
 
 class chunk:
@@ -10,13 +11,13 @@ class chunk:
         self.length = None
         self.data = None
 
-    def parse(self, in_fh):
+    def parse(self, in_fh: io.BufferedReader):
         if self.type == "FORM":
             return self.parse_form(in_fh)
         else:
             return f"ERROR: Unsupported IFF base chunk '{self.type}'"
 
-    def parse_form(self, in_fh):
+    def parse_form(self, in_fh: io.BufferedReader):
         self.data = []
         
         position = 0
@@ -27,12 +28,11 @@ class chunk:
 
         print(self.type, self.length, self.formtype)
 
-        # The while loop needs to be finished.
-        # I am not sure whether to move this loop
-        # to a separate (default) option in the
-        # iff_chunk.parse method which might be
-        # quite nice, and could make it much easier
-        # to handle implementing CAT and LIST
+        ## I am not sure whether to move this loop
+        ## to a separate (default) option in the
+        ## iff_chunk.parse method which might be
+        ## quite nice, and could make it much easier
+        ## to handle implementing CAT and LIST
 
         while position < self.length:
             child = chunk()
@@ -46,11 +46,12 @@ class chunk:
         return position
 
 class iff_file:
-    def __init__(self):
+    def __init__(self, filename=None):
         self.data = None
+        self.filename = filename
 
-    def load(self, filename):
-        in_file = Path(filename)
+    def load(self):
+        in_file = Path(self.filename)
         
         with in_file.open(mode="rb") as in_fh:
             self.position = 0
@@ -65,3 +66,17 @@ class iff_file:
             (self.data.length,) =struct.unpack(">I", buf)
 
             self.data.parse(in_fh)
+
+    def dump(self, outdirname=None):
+        if outdirname == None:
+            filepath = Path(self.filename)
+            writedir = Path(filepath.stem + '_' + filepath.suffix[1:])
+        else:
+            writedir = Path(outdirname)
+            
+        writedir.mkdir(mode=0o777, parents=True, exist_ok=True)
+            
+        for index, chunk in enumerate(self.data.data):
+            writepath = writedir / f"{index}_{chunk.type}"
+            with writepath.open("wb") as out_fh:
+                out_fh.write(chunk.data)
