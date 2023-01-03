@@ -6,44 +6,55 @@ import io
 from pathlib import Path
 
 class chunk:
+    """A basic class for IFF chunks, can implement reading the base
+    chunk types of FORM, [LIST, and CAT (not yet implemented)],
+    reading child chunk prefixes but not parsing them unless
+    parsing of their individual types is implemented separately.
+    If the chunk name contains non ascii characters, it returns
+    an error."""
+    
     def __init__(self):
         self.type = None
+        self.data_offset = None
         self.length = None
-        self.data = None
 
     def parse(self, in_fh: io.BufferedReader):
+        # Read chunk type:
+        buf = in_fh.read(4)
+        try:
+            self.type = buf.decode("ascii")
+        except UnicodeDecodeError:
+            (val,) = struct.unpack("I", buf)
+            return 'Error, invalid data for chunk type: {:08x}'.format(val)
+
+        # Handle known types
         if self.type == "FORM":
             return self.parse_form(in_fh)
-        else:
-            return f"ERROR: Unsupported IFF base chunk '{self.type}'"
+
+        # Handle the general case
+        (self.length,) = struct.unpack(">I", in_fh.read(4))
+        self.data_offset = in_fh.tell()
+
+        in_fh.seek(self.length, 1)
+        return None
 
     def parse_form(self, in_fh: io.BufferedReader):
-        self.data = []
-        
-        position = 0
-
+        self.children = []
         buf = in_fh.read(4)
-        position += 4
+        (self.length,) = struct.unpack(">I", buf)
+        buf = in_fh.read(4)
         self.formtype = buf.decode('ascii')
 
         print(self.type, self.length, self.formtype)
 
-        ## I am not sure whether to move this loop
-        ## to a separate (default) option in the
-        ## iff_chunk.parse method which might be
-        ## quite nice, and could make it much easier
-        ## to handle implementing CAT and LIST
-
-        while position < self.length:
+        self.data_offset = in_fh.tell()
+        
+        while in_fh.tell() < self.data_offset + self.length:
             child = chunk()
-            buf = in_fh.read(4)
-            child.type = buf.decode('ascii')
-            buf = in_fh.read(4)
-            (child.length,) = struct.unpack(">I", buf)
-            child.data = in_fh.read(child.length)
-            self.data.append(child)
-            position += 8 + child.length + (child.length % 2)
-        return position
+            if child.parse(in_fh) != None:
+                return _
+            self.children.append(child)
+        return None
 
 class iff_file:
     def __init__(self, filename=None):
@@ -54,29 +65,24 @@ class iff_file:
         in_file = Path(self.filename)
         
         with in_file.open(mode="rb") as in_fh:
-            self.position = 0
             self.data = chunk()
-            
-            buf = in_fh.read(4)
-            self.position += 4
-            self.data.type = buf.decode('ascii')
-            
-            buf = in_fh.read(4)
-            self.position += 4
-            (self.data.length,) =struct.unpack(">I", buf)
-
-            self.data.parse(in_fh)
+            if self.data.parse(in_fh) != None:
+                print(_)
 
     def dump(self, outdirname=None):
+        filepath = Path(self.filename)
         if outdirname == None:
-            filepath = Path(self.filename)
             writedir = Path(filepath.stem + '_' + filepath.suffix[1:])
         else:
             writedir = Path(outdirname)
             
         writedir.mkdir(mode=0o777, parents=True, exist_ok=True)
-            
-        for index, chunk in enumerate(self.data.data):
-            writepath = writedir / f"{index}_{chunk.type}"
-            with writepath.open("wb") as out_fh:
-                out_fh.write(chunk.data)
+        with filepath.open("rb") as in_fh:
+            for index, chunk in enumerate(self.data.children):
+                writepath = writedir / f"{index}_{chunk.type}"
+                with writepath.open("wb") as out_fh:
+                    in_fh.seek(chunk.data_offset)
+                    out_fh.write(in_fh.read(chunk.length))
+
+if __name__ == "__main__":
+    pass
