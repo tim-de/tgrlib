@@ -49,6 +49,35 @@ The header contains some information describing the file as a
 whole, as well as some info about each image (FRAM chunk) stored
 later in the file.
 
+The first 24 bytes of the header (after the 32-bit chunk length)
+encode details about the specific format being used. I do not
+understand the details of the information included in this section
+yet, but I suspect that the third byte is the number of
+channels contained in the images stored in the file.
+One thing I have found is that the 5th byte (possibly the 6th too
+in a 16-bit little-endian int) stores the number of frames contained
+in the file.
+
+The other bytes in this part seem to contain information about the
+encoding and compression schemes used for the image data, as when
+viewing files which were clearly encoded differently, some of these
+numbers were different as well.
+
+This is followed by a 32-byte section encoding the size of the image,
+and seeming to give some alternative sizes (with width and/or height
+either slightly smaller or bigger), although I don't yet know why
+(maybe they are min and max values if the frames vary in size).
+
+Then the file contains  specifications for every FRAM chunk contained
+in the file. The spec consists of the width and height as 16-bit integers,
+then the offset of the data in the file (pointing to the beginning of
+the actual data in the FRAM chunk, just after the 32-bit chunk length)
+represented as a 32-bit integer.
+
+Between each frame spec is 32-bits of 0, and at the end of the header
+is the number of frames again, followed by what I think is some of the
+information about the encoding which also appeared further up in the header.
+
 ## FRAM chunks
 
 **Note: .TGR files seem to implement a number of**
