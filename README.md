@@ -1,6 +1,11 @@
 # Parsing of .TGR game asset files
 
-***
+This repo contains attempts to reverse-engineer the .TGR files used
+to store some game assets (such as images, animations, and effects)
+in the TimeGate releases _Kohan: Immortal Sovereigns_ and
+_Kohan: Ahriman's Gift_.
+The source files under study have been extracted from the .TGW game
+data archives using some tools from [the tgxlib repo](https://github.com/tim-de/tgxlib).
 
 ## Key points
 
@@ -13,13 +18,21 @@ with its own chunk types such as HEDR and FRAM.
 IFF is a generic way of packaging data in a file that minimally
 describes the format and the amount of data it contains. It is
 extensible by design, and the TimeGate guys seem to have gone
-down that route, creating their own *chunk* types, rather than
+down that route, creating their own _chunk_ types, rather than
 using one of the [many existing formats](https://wiki.amigaos.net/wiki/IFF_FORM_and_Chunk_Registry)
 for storing images and animations and things, which would have
 been far more documented than what we have (you know, like some
 documentation might exist (not that I'm bitter)).
 
-Anyway, IFF is a pretty simple format, and there's a bunch of
+The basic component of an IFF file is the _chunk_, which consists of
+a 4-character type-identifier, followed by the length of the data
+contained in the chunk, and then the data itself.
+The length is represented as a 32-bit [**big-endian**](https://en.wikipedia.org/wiki/Endianness) integer, which
+derives from IFF's origin on the Amiga, whose Motorola 68000 processor
+was natively big-endian, so these values will need conversion to be
+correctly read on most modern platforms.
+
+Anyway, IFF is a pretty simple format, and there's a bunch of detailed
 information about it [here](https://wiki.amigaos.net/wiki/A_Quick_Introduction_to_IFF).
 
 The following chunks have been identified in .TGR files:
@@ -34,7 +47,7 @@ The following chunks have been identified in .TGR files:
 
 The header contains some information describing the file as a
 whole, as well as some info about each image (FRAM chunk) stored
-later in the file. 
+later in the file.
 
 ## FRAM chunks
 
