@@ -68,13 +68,20 @@ and seeming to give some alternative sizes (with width and/or height
 either slightly smaller or bigger), although I don't yet know why
 (maybe they are min and max values if the frames vary in size).
 
-Then the file contains  specifications for every FRAM chunk contained
-in the file. The spec consists of the width and height as 16-bit integers,
+Then the file contains specifications for every FRAM chunk contained
+in the file. The spec consists of the width and height (each decremented,
+for some reason (possibly storing them as the highest x and y position
+of the bottom right corner)) as 16-bit integers,
 then the offset of the data in the file (pointing to the beginning of
 the actual data in the FRAM chunk, just after the 32-bit chunk length)
 represented as a 32-bit integer.
 
-Between each frame spec is 32-bits of 0, and at the end of the header
+	| 16-bit | 16-bit |     32-bit      |
+	|--------|--------|-----------------|
+	|  width | height |  data   offset  |
+	|--------|--------|-----------------|
+
+Between each frame spec is 4 zero-bytes, and at the end of the header
 is the number of frames again, followed by what I think is some of the
 information about the encoding which also appeared further up in the header.
 
