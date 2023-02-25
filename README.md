@@ -30,9 +30,9 @@ contained in the chunk, and then the data itself.
 The length is represented as a 32-bit [**big-endian**](https://en.wikipedia.org/wiki/Endianness) integer, which
 derives from IFF's origin on the Amiga, whose Motorola 68000 processor
 was natively big-endian, so these values will need conversion to be
-correctly read on most modern platforms.
+correctly read on x86-64 where TGR is used.
 
-Anyway, IFF is a pretty simple format, and there's a bunch of detailed
+Anyway, IFF is a pretty simple format structure, and there's a bunch of detailed
 information about it [here](https://wiki.amigaos.net/wiki/A_Quick_Introduction_to_IFF).
 
 The following chunks have been identified in .TGR files:
@@ -48,6 +48,25 @@ The following chunks have been identified in .TGR files:
 The header contains some information describing the file as a
 whole, as well as some info about each image (FRAM chunk) stored
 later in the file.
+
+The first 32 bits contains the version number of the program used
+to generate the file. The first 16 bits contains the minor version
+and the second 16 bits contains the major version.
+
+Then there is the number of frames in the file, as a 16 bit int,
+followed by the bit depth of each pixel which seems to be a u8.
+The following byte is usually 0, but has been seen to be 1 sometimes,
+although the meaning of this is not understood.
+
+At offset 0x10 is the xy coordinates of the HotSpot, which for game
+objects is the centre of the object on the ground. For non-game
+objects this seems to always be 0.
+
+|   | 16-bit | 16-bit |
+|---|---|---|
+| 0x10 | HotSpot x | HotSpot y |
+| 0x14 | Selection box top left x | Selection box top left y |
+| 0x18 | Selection box bottom right x | Selection box bottom right y |
 
 The first 24 bytes of the header (after the 32-bit chunk length)
 encode details about the specific format being used. I do not
@@ -69,20 +88,19 @@ either slightly smaller or bigger), although I don't yet know why
 (maybe they are min and max values if the frames vary in size).
 
 Then the file contains specifications for every FRAM chunk contained
-in the file. The spec consists of the width and height (each decremented,
-for some reason (possibly storing them as the highest x and y position
-of the bottom right corner)) as 16-bit integers,
-then the offset of the data in the file (pointing to the beginning of
-the actual data in the FRAM chunk, just after the 32-bit chunk length)
-represented as a 32-bit integer.
+in the file, comprised of the xy offset in the image of the top left
+corner of the frame, then the offset of the bottom right corner,
+stored as 16-bit integers. This is followed by the file offset of the
+frame data (pointing to the beginning of the actual data in the FRAM
+chunk, just after the 32-bit chunk length) represented as a 32-bit integer.
 
-	| 16-bit | 16-bit |     32-bit      |
-	|--------|--------|-----------------|
-	|  width | height |  data   offset  |
-	|--------|--------|-----------------|
+| 16-bits | 16-bits |
+| --- | --- |
+| upper left x | upper left y |
+| lower right x | lower right y |
 
-Between each frame spec is 4 zero-bytes, and at the end of the header
-is the number of frames again, followed by what I think is some of the
+The header ends with some information about the rest of the chunks, including
+the number of frames again, followed by what I think is some more
 information about the encoding which also appeared further up in the header.
 
 ## FRAM chunks
@@ -125,11 +143,12 @@ data that follows it, and the low order 5 bits contain the
 run length itself.
 
 I do not fully understand the exact nature of the flag
-part at this point, and am continuing to study the images
-I have 
+part at this point, and am continuing to study the images I have.
 
-When the flag part is `001`, this seems to denote that a 2-byte encoding
-describes the pixel value, so `38 00 00` denotes that there are `0x18` (24)
+When the flag part is `001`, this seems to denote run length encoding, so
+`38 00 00` denotes that there are `0x18` (24)
 black pixels, and `29 00 08` indicates that there is a 9-pixel run of
-`#080000`. This may, however, only be describing the channel of the image
-that changes, rather than containing information about red, green, and blue.
+`#080000`.
+
+A flag of `010` indicates that there is a sequence of unencoded pixels, and
+the run length is the number of pixels represented in this way.

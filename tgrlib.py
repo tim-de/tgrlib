@@ -5,8 +5,10 @@ import struct
 import io
 
 class tgrFile:
-    ## Defines a class representing a .TGR game asset file,
-    ## which as a format is based on the IFF file structure
+    """
+    A class representing a .TGR game asset file,
+    which as a format is based on the IFF file structure
+    """
     
     class frame:
         class line:
@@ -33,6 +35,9 @@ class tgrFile:
                     break
                 self.lines.append(tgrFile.frame.line(in_fh.tell()+3, length-5))
                 in_fh.seek(length-2, 1)
+
+        # TODO: add methods for decoding a frame into either a list of bytes
+        #       or a PIL image (but might be best to keep it light on dependencies)
                 
     def __init__(self, filename: str):
         self.filename = filename
@@ -56,18 +61,19 @@ class tgrFile:
             in_fh.seek(6, 1)
             self.size = struct.unpack("HH", in_fh.read(4))
             in_fh.seek(24, 1)
-            for _ in range(framecount):
-                in_fh.seek(4, 1)
-                self.framesizes.append(struct.unpack("HH", in_fh.read(4)))
-                in_fh.seek(4, 1)
+            for _ in range(self.framecount):
+                (ulx, uly, lrx, lry, offset) = struct.unpack("HHHHI", in_fh.read(12))
+                #in_fh.seek(4, 1)
+                #self.framesizes.append(struct.unpack("HH", in_fh.read(4)))
+                self.framesizes.append((1+lrx-ulx, 1+lry-uly, offset))
+        print(len(self.framesizes))
 
     def get_frames(self):
         with open(self.filename, "rb") as in_fh:
-            for index, child in enumerate(self.iff.data.children):
-                if child.type != "FRAM":
-                    continue
-                in_fh.seek(child.data_offset)
-                frame = tgrFile.frame(self.framesizes[0], in_fh)
+            for index, child in enumerate(self.framesizes):
+                print(index)
+                in_fh.seek(child[2])
+                frame = tgrFile.frame((child[0], child[1]), in_fh)
                 self.frames.append(frame)
 
 if __name__ == "__main__":
