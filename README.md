@@ -32,9 +32,6 @@ derives from IFF's origin on the Amiga, whose Motorola 68000 processor
 was natively big-endian, so these values will need conversion to be
 correctly read on x86-64 where TGR is used.
 
-Anyway, IFF is a pretty simple format structure, and there's a bunch of detailed
-information about it [here](https://wiki.amigaos.net/wiki/A_Quick_Introduction_to_IFF).
-
 The following chunks have been identified in .TGR files:
 
 * **HEDR**: Information about the file as a whole and any following FRAM chunks
@@ -128,8 +125,7 @@ can fit in under 256 bytes and images whose width will produce
 too much data for the line length to be described with 8 bits,
 and so the above line header is used.
 
-Some form of Run Length Encoding (RLE) is utilised
-to compress the lines.
+Run Length Encoding (RLE) is utilised to compress the lines.
 
 It seems that the basic form of runs/pixels starts with
 a single byte describing the form and length of a run
@@ -152,3 +148,11 @@ black pixels, and `29 00 08` indicates that there is a 9-pixel run of
 
 A flag of `010` indicates that there is a sequence of unencoded pixels, and
 the run length is the number of pixels represented in this way.
+
+The other flags that seem to be present are `110` and `111`, and each fulfil
+special cases. `110` seems to occur in the bytes `0xC0` and `0xC1`, where the
+first denotes a single black (`#000000`) pixel, and the latter a pixel of `#080000`.
+In the case of a `111` flag, it seems again to denote the colour `#080000` but the run
+length is now used to store the number of pixels of this colour. Furthermore,
+for `111` bytes, there are a number of following null bytes that seems to have some
+relation to the number of pixels being encoded, although this is not yet clear.
