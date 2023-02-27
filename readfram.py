@@ -18,7 +18,7 @@ def decodePixel(half_word: int):
     # only the desired channel.
     blue = (half_word << 3) & 0xff
     green = (half_word >> 3) & 0xfc
-    red = (half_word >> 8) & 0xf8
+    red = (half_word >> 8) & 0xfc
     return struct.pack("BBB", red, green, blue)
 
 def extractLine(line: tgrlib.tgrFile.frame.line, fh: io.BufferedReader, line_idx=None):
@@ -43,7 +43,7 @@ def extractLine(line: tgrlib.tgrFile.frame.line, fh: io.BufferedReader, line_idx
                 line_ix += 2
                 pixel_ix += 1
         else:
-            print(f"{line_idx},{pixel_ix}: Unsupported flag {flag} at offset 0x{fh.tell()-1:08x}")
+            print(f"{line_idx:3d},{pixel_ix:3d}: Unsupported flag {flag} in datapoint 0x{run_header[0]:02x} at offset 0x{fh.tell()-1:08x}")
     return outbuf     
 
 if __name__ == "__main__":
