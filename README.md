@@ -151,7 +151,7 @@ In this case the basic form of runs/pixels starts with
 a single byte describing the form and length of a run
 as follows:
 
-	|7 - 5|4 - - - 0|
+	|7 . 5|4 . . . 0|
 	|X X X|Y Y Y Y Y|
 
 where the high order 3 bits contain flags describing the form of
@@ -179,10 +179,12 @@ relation to the number of pixels being encoded, although this is not yet clear.
 
 ### Colour format
 All the images I have decoded have used 16-bit colour, with pixels arranged as follows
-in the file:
+in the file, with bit offsets shown both within the entire 16-bit value, and within each
+of the two bytes comprising it:
 
-	bit: f . . . b|a . . . . 5|4 . . . 0
-		 B B B B B|G G G G G G|R R R R R
+	F . . . B|A . . . . 5|4 . . . 0
+	7 . . . 3|2 . 0|7 . 5|4 . . . 0
+	B B B B B|G G G G G G|R R R R R
 
 This arrangement is stored as if it were a big-endian 16-bit integer, so the blue channel
 and the top half of green are in the first byte, and the bottom 3 bits of green and the
