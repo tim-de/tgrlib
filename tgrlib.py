@@ -30,11 +30,18 @@ class tgrFile:
                 if len(rawlen) < 2:
                     break
                 (length,) = struct.unpack(">H", rawlen)
-                length &= 0x7fff
+                
+                if length & 0x8000 != 0:
+                    length &= 0x7fff
+                    datastart = in_fh.tell()+3
+                    datalength = length - 5
+                else:
+                    datastart = in_fh.tell()+1
+                    datalength = (length // 256) - 3
                 if length == 0 or len(self.lines) >= self.size[1]:
                     break
-                self.lines.append(tgrFile.frame.line(in_fh.tell()+3, length-5))
-                in_fh.seek(length-2, 1)
+                self.lines.append(tgrFile.frame.line(datastart, datalength))
+                in_fh.seek(datastart + datalength)
 
         # TODO: add methods for decoding a frame into either a list of bytes
         #       or a PIL image (but might be best to keep it light on dependencies)

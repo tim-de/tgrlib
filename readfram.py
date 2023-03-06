@@ -4,6 +4,7 @@ import sys
 import io
 import tgrlib
 from PIL import Image
+from pathlib import Path
 import struct
 
 def getRunData(byte):
@@ -26,6 +27,7 @@ def extractLine(line: tgrlib.tgrFile.frame.line, fh: io.BufferedReader, line_idx
     line_ix = 0
     pixel_ix = 0
     fh.seek(line.offset)
+    #print(f"Extracting line of length 0x{line.length:x}")
     while line_ix < line.length:
         run_header = fh.read(1)
         line_ix += 1
@@ -66,25 +68,27 @@ if __name__ == "__main__":
 
     imagefile.load()
 
+    image_name = Path(image_path).stem
+
     print(imagefile.framecount)
     frame = imagefile.frames[0]
-    outfilename = "out.bin"
+    #outfilename = "out.bin"
 
-    min = frame.size[0]
-    min_idx = 0
-    for index, line in enumerate(frame.lines):
-        if line.length < min:
-            min = line.length
-            min_idx = index
+    #min = frame.size[0]
+    #min_idx = 0
+    #for index, line in enumerate(frame.lines):
+    #    if line.length < min:
+    #        min = line.length
+    #        min_idx = index
 
-    shortline = frame.lines[min_idx]
-    print(f"{min_idx}: 0x{shortline.offset:06x}, {shortline.length}")
+    #shortline = frame.lines[min_idx]
+    #print(f"{min_idx}: 0x{shortline.offset:06x}, {shortline.length}")
 
-    with open(outfilename, "wb") as out_fh:
-        with open(imagefile.filename, "rb") as in_fh:
-            in_fh.seek(shortline.offset)
-            buf = in_fh.read(shortline.length)
-            out_fh.write(buf)
+    #with open(outfilename, "wb") as out_fh:
+    #    with open(imagefile.filename, "rb") as in_fh:
+    #        in_fh.seek(shortline.offset)
+    #        buf = in_fh.read(shortline.length)
+    #        out_fh.write(buf)
     
     image = Image.new("RGB", frame.size)
     imagedata = b""
@@ -97,4 +101,4 @@ if __name__ == "__main__":
             #print(f"{idx+1:3d}: 0x{line.offset:06x}, {len(rawline)}")
     print(len(imagedata))
     image.frombytes(imagedata)
-    image.save("out.png")
+    image.save(f"{image_name}.png")

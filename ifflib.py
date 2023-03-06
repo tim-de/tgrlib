@@ -1,7 +1,6 @@
 #!/usr/bin/pypy3
 
 import struct
-import os
 import io
 from pathlib import Path
 
@@ -51,23 +50,24 @@ class chunk:
         
         while in_fh.tell() < self.data_offset + self.length:
             child = chunk()
-            if child.parse(in_fh) != None:
-                return _
+            errval = child.parse(in_fh)
+            if errval != None:
+                return errval
             self.children.append(child)
         return None
 
 class iff_file:
-    def __init__(self, filename=None):
-        self.data = None
+    def __init__(self, filename):
+        self.data = chunk()
         self.filename = filename
 
     def load(self):
         in_file = Path(self.filename)
         
         with in_file.open(mode="rb") as in_fh:
-            self.data = chunk()
-            if self.data.parse(in_fh) != None:
-                print(_)
+            errval = self.data.parse(in_fh)
+            if errval != None:
+                print(errval)
 
     def dump(self, outdirname=None):
         filepath = Path(self.filename)
