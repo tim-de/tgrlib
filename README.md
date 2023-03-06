@@ -70,9 +70,8 @@ encode details about the specific format being used. I do not
 understand the details of the information included in this section
 yet, but I suspect that the third byte is the number of
 channels contained in the images stored in the file.
-One thing I have found is that the 5th byte (possibly the 6th too
-in a 16-bit little-endian int) stores the number of frames contained
-in the file.
+One thing I have found is that the 5th byte stores the number of
+FRAM chunks contained in the file.
 
 The other bytes in this part seem to contain information about the
 encoding and compression schemes used for the image data, as when
@@ -107,15 +106,28 @@ information about the encoding which also appeared further up in the header.
 **describes one of them, used in the larger single images**
 **such as the splash screen and the menu background**
 
-These contain a full image, comprised of lines individually
-encoded and compressed. The lines each begin with a 5-byte
-header formed as follows
+These each contain a full image, comprised of lines individually
+encoded and compressed. The lines each begin with a header which
+can take several forms.
 
-`8X YZ 00 84 00`
+In larger images the header has 5 bytes and is formed as follows:
+
+`8X XX 00 84 00`
 
 where XYZ is the total length of the data forming the line
 (including the 5-byte header)
 and the rest seems constant.
+
+I suspect that this is used when the width of the image is larger
+than 127, and cannot be represented without setting the highest-order
+bit of the number, as that bit is probably used as the flag to
+determine the line format.
+
+If the line is shorter than this then it has a 3-byte header of the form:
+
+`XX 00 31`
+
+where XX is the length of the data forming the line as above.
 
 Different encoding forms (specified within the HEDR section)
 have similar information included at the start of the scanline
@@ -125,9 +137,13 @@ can fit in under 256 bytes and images whose width will produce
 too much data for the line length to be described with 8 bits,
 and so the above line header is used.
 
-Run Length Encoding (RLE) is utilised to compress the lines.
+The lines are individually run-length encoded. [Run-length
+encoding](https://en.wikipedia.org/wiki/Run-length_encoding) (RLE)
+is a lossless compression scheme in which sections of data
+consisting of the same value repeated are represented by the
+number of repetitions followed by the value to be repeated.
 
-It seems that the basic form of runs/pixels starts with
+In this case the basic form of runs/pixels starts with
 a single byte describing the form and length of a run
 as follows:
 
