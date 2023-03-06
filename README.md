@@ -172,3 +172,14 @@ In the case of a `111` flag, it seems again to denote the colour `#080000` but t
 length is now used to store the number of pixels of this colour. Furthermore,
 for `111` bytes, there are a number of following null bytes that seems to have some
 relation to the number of pixels being encoded, although this is not yet clear.
+
+### Colour format
+All the images I have decoded have used 16-bit colour, with pixels arranged as follows
+in the file:
+
+	bit: f . . . b|a . . . . 5|4 . . . 0
+		 B B B B B|G G G G G G|R R R R R
+
+This arrangement is stored as if it were a big-endian 16-bit integer, so the blue channel
+and the top half of green are in the first byte, and the bottom 3 bits of green and the
+red channel are in the second.
