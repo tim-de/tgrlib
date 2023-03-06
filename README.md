@@ -116,7 +116,7 @@ In larger images the header has 5 bytes and is formed as follows:
 
 `8X XX 00 84 00`
 
-where XYZ is the total length of the data forming the line
+where XXX is the total length of the data forming the line
 (including the 5-byte header)
 and the rest seems constant.
 
