@@ -102,10 +102,12 @@ information about the encoding which also appeared further up in the header.
 ## FRAM chunks
 
 **Note: .TGR files seem to implement a number of**
-**different encodings, and the below information only**
-**describes one of them, used in the larger single images**
-**such as the splash screen and the menu background**
+**different encodings, and the below information does**
+**describe all of them yet, and currently only covers**
+**the run-length encoded bitmaps used for large images**
+**such as the splash screen and some smaller buttons**
 
+### Line Format
 These each contain a full image, comprised of lines individually
 encoded and compressed. The lines each begin with a header which
 can take several forms.
@@ -136,6 +138,8 @@ This is most likely a difference between images whose scanlines
 can fit in under 256 bytes and images whose width will produce
 too much data for the line length to be described with 8 bits,
 and so the above line header is used.
+
+### Compression Scheme
 
 The lines are individually run-length encoded. [Run-length
 encoding](https://en.wikipedia.org/wiki/Run-length_encoding) (RLE)
