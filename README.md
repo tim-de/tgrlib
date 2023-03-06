@@ -108,9 +108,9 @@ information about the encoding which also appeared further up in the header.
 **such as the splash screen and some smaller buttons**
 
 ### Line Format
-These each contain a full image, comprised of lines individually
-encoded and compressed. The lines each begin with a header which
-can take several forms.
+Each FRAM chunk contains a full image comprised of lines individually
+encoded and compressed. Every line begins with a header which
+can take one of several forms.
 
 In larger images the header has 5 bytes and is formed as follows:
 
@@ -184,8 +184,8 @@ of the two bytes comprising it:
 
 	F . . . B|A . . . . 5|4 . . . 0
 	7 . . . 3|2 . 0|7 . 5|4 . . . 0
-	B B B B B|G G G G G G|R R R R R
+	R R R R R|G G G G G G|B B B B B
 
-This arrangement is stored as if it were a big-endian 16-bit integer, so the blue channel
+This arrangement is stored as if it were a big-endian 16-bit integer, so the red channel
 and the top half of green are in the first byte, and the bottom 3 bits of green and the
-red channel are in the second.
+blue channel are in the second.
