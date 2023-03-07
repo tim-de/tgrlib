@@ -4,6 +4,17 @@ import ifflib
 import struct
 import io
 
+def read_line_length(in_fh: io.BufferedReader):
+    rawlen = in_fh.read(2)
+    if len(rawlen) < 2:
+        raise EOFError
+    if rawlen[0] & 0x80 != 0:
+        (length,) = struct.unpack(">H", rawlen)
+        return length & 0x7fff
+    else:
+        in_fh.seek(-1, 1)
+        return rawlen[0]
+
 class tgrFile:
     """
     A class representing a .TGR game asset file,
@@ -12,12 +23,16 @@ class tgrFile:
     
     class frame:
         class line:
-            def __init__(self, offset, length):
-                self.length = length
-                self.offset = offset
+            def __init__(self, in_fh: io.BufferedReader):
+                header_offset = in_fh.tell()
+                total_length = read_line_length(in_fh)
+                in_fh.seek(1,1)
+                self.pixel_length = read_line_length(in_fh)
+                self.offset = in_fh.tell()
+                self.data_length = total_length - (self.offset - header_offset)
             def get(self, in_fh: io.BufferedReader):
                 in_fh.seek(self.offset)
-                return in_fh.read(self.length)
+                return in_fh.read(self.data_length)
             #def get(self, filename: str):
             #    with open(filename, "rb") as in_fh:
             #        return self.get(in_fh)
@@ -26,22 +41,11 @@ class tgrFile:
             self.size = size
             self.lines = []
             while True:
-                rawlen = in_fh.read(2)
-                if len(rawlen) < 2:
+                newline = tgrFile.frame.line(in_fh)
+                if newline.data_length == 0 or len(self.lines) >= self.size[1]:
                     break
-                (length,) = struct.unpack(">H", rawlen)
-                
-                if length & 0x8000 != 0:
-                    length &= 0x7fff
-                    datastart = in_fh.tell()+3
-                    datalength = length - 5
-                else:
-                    datastart = in_fh.tell()+1
-                    datalength = (length // 256) - 3
-                if length == 0 or len(self.lines) >= self.size[1]:
-                    break
-                self.lines.append(tgrFile.frame.line(datastart, datalength))
-                in_fh.seek(datastart + datalength)
+                self.lines.append(newline)
+                in_fh.seek(newline.offset + newline.data_length)
 
         # TODO: add methods for decoding a frame into either a list of bytes
         #       or a PIL image (but might be best to keep it light on dependencies)
@@ -73,12 +77,11 @@ class tgrFile:
                 #in_fh.seek(4, 1)
                 #self.framesizes.append(struct.unpack("HH", in_fh.read(4)))
                 self.framesizes.append((1+lrx-ulx, 1+lry-uly, offset))
-        print(len(self.framesizes))
+        #print(len(self.framesizes))
 
     def get_frames(self):
         with open(self.filename, "rb") as in_fh:
-            for index, child in enumerate(self.framesizes):
-                print(index)
+            for child in self.framesizes:
                 in_fh.seek(child[2])
                 frame = tgrFile.frame((child[0], child[1]), in_fh)
                 self.frames.append(frame)
