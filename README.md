@@ -99,7 +99,14 @@ The header ends with some information about the rest of the chunks, including
 the number of frames again, followed by what I think is some more
 information about the encoding which also appeared further up in the header.
 
-## FRAM chunks
+## PALT Chunks
+
+The format of PALT colour palette specifier chunks seems to consist of a 32-bit
+little-endian integer containing the number of colours stored in the palette
+(which in all the examples I've looked at has just been 256), followed by an
+array of all the colours in the 16-bit colour format described below.
+
+## FRAM Chunks
 
 **Note: .TGR files seem to implement a number of**
 **different encodings, and the below information does**
@@ -107,37 +114,32 @@ information about the encoding which also appeared further up in the header.
 **the run-length encoded bitmaps used for large images**
 **such as the splash screen and some smaller buttons**
 
+The FRAM chunk is the part of the container that contains the actual
+image data, although the specific layout of that data depends on
+several factors, such as whether the image uses immediate or indexed
+colour, and the size of the image.
+
 ### Line Format
-Each FRAM chunk contains a full image comprised of lines individually
-encoded and compressed. Every line begins with a header which
-can take one of several forms.
+The data in each FRAM chunk consists of lines individually encoded and
+compressed. Every line begins with a header which describes the length
+of the encoded line in bytes (including the header), and the length
+of the decoded line in pixels.
 
-In larger images the header has 5 bytes and is formed as follows:
+The lengths are stored in either 1 or 2 bytes, depending on size, and
+are arranged as follows:
 
-`8X XX 00 84 00`
+`[8X] XX 00 [8Y] YY`
 
-where XXX is the total length of the data forming the line
-(including the 5-byte header)
-and the rest seems constant.
+where [X]XX is the total length of the data forming the line
+(including the 5-byte header) and [Y]YY specifies the length of the
+decoded line, and bracketed sections are only present in longer lines.
 
-I suspect that this is used when the width of the image is larger
-than 127, and cannot be represented without setting the highest-order
-bit of the number, as that bit is probably used as the flag to
-determine the line format.
-
-If the line is shorter than this then it has a 3-byte header of the form:
-
-`XX 00 31`
-
-where XX is the length of the data forming the line as above.
-
-Different encoding forms (specified within the HEDR section)
-have similar information included at the start of the scanline
-but encoded in different ways.
-This is most likely a difference between images whose scanlines
-can fit in under 256 bytes and images whose width will produce
-too much data for the line length to be described with 8 bits,
-and so the above line header is used.
+If the length is less than 128 bytes/pixels then the value is just
+stored as-is. If the value is greater then it uses the 2-byte
+representation, with the highest-order bit always set as a flag to
+signal that the longer form is being used. In this sense the two
+formats operate as 7-bit and 15-bit numbers, each of which starts
+with a single-bit flag indicating which form is in use. 
 
 ### Compression Scheme
 
