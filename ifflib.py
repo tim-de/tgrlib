@@ -44,7 +44,7 @@ class chunk:
         buf = in_fh.read(4)
         self.formtype = buf.decode('ascii')
 
-        print(self.type, self.length, self.formtype)
+        #print(self.type, self.length, self.formtype)
 
         self.data_offset = in_fh.tell()
         
