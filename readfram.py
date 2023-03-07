@@ -19,7 +19,7 @@ def decodePixel(half_word: int):
     # only the desired channel.
     blue = (half_word << 3) & 0xff
     green = (half_word >> 3) & 0xfc
-    red = (half_word >> 8) & 0xff
+    red = (half_word >> 8) & 0xf8
     return struct.pack("BBB", red, green, blue)
 
 def extractLine(line: tgrlib.tgrFile.frame.line, fh: io.BufferedReader, line_idx=None):
@@ -28,7 +28,7 @@ def extractLine(line: tgrlib.tgrFile.frame.line, fh: io.BufferedReader, line_idx
     pixel_ix = 0
     fh.seek(line.offset)
     #print(f"Extracting line of length 0x{line.length:x}")
-    while line_ix < line.length:
+    while line_ix < line.data_length:
         run_header = fh.read(1)
         line_ix += 1
         (flag, run_length) = getRunData(run_header[0])
@@ -70,7 +70,7 @@ if __name__ == "__main__":
 
     image_name = Path(image_path).stem
 
-    print(imagefile.framecount)
+    #print(imagefile.framecount)
     frame = imagefile.frames[0]
     #outfilename = "out.bin"
 
@@ -97,8 +97,8 @@ if __name__ == "__main__":
             rawline = extractLine(line, in_fh, idx)
             imagedata += rawline
             if len(rawline) < (3 * frame.size[0]):
-                imagedata += b"\xff" * ((3*frame.size[0]) - len(rawline))
+                imagedata += b"\xff" * ((3*line.pixel_length) - len(rawline))
             #print(f"{idx+1:3d}: 0x{line.offset:06x}, {len(rawline)}")
-    print(len(imagedata))
+    #print(len(imagedata))
     image.frombytes(imagedata)
     image.save(f"{image_name}.png")
