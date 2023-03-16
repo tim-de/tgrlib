@@ -125,33 +125,21 @@ colour, and the size of the image.
 
 ### Line Format
 The data in each FRAM chunk consists of lines individually encoded and
-compressed. Every line begins with a header which describes the length
-of the encoded line in bytes (including the header), and the length
-of the decoded line in pixels.
+compressed. Every line begins with a header which contains information
+about the line that follows. The information contained is:
+ 1. The length of the line data in bytes (header included)
+ 2. The offset of the start of the line (after some transparent/background
+ pixels)
+ 3. The number of pixels contained in the line data.
 
-The lengths are stored in either 1 or 2 bytes, depending on size, and
-are arranged as follows:
+Each of these values is packed into 1 or 2 bytes, where single bytes are
+used for values less than 128 and packed as-is, and values greater than
+128 are packed in the form
 
-`[8X] XX 00 [8Y] YY`
+`8X XX`
 
-where `[X]XX` is the total length of the data forming the line
-(including the 5-byte header) and `[Y]YY` specifies the length of the
-decoded line, and bracketed sections are only present in longer lines.
-
-If the length is less than 128 bytes/pixels then the value is just
-stored as-is. If the value is greater then it uses the 2-byte
-representation, with the highest-order bit always set as a flag to
-signal that the longer form is being used. In this sense the two
-formats operate as 7-bit and 15-bit numbers, each of which starts
-with a single-bit flag indicating which form is in use. 
-
-#### In Sprites:
-Files containing sprite data seem to use the same format for PALT chunks,
-but a different way of encoding lines in the image, due to transparency.
-Each line appears to start with a 3-byte header containing the following:
- - Number of bytes of data in the line
- - Offset of the first non-transparent pixel in the line
- - Number of non-transparent pixels encoded in the line
+where `0X XX` is the value being encoded, and the 0x80 is used as a flag
+to signify the value type being used.
 
 ### Compression Scheme
 
