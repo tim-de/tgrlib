@@ -55,6 +55,11 @@ followed by the bit depth of each pixel which seems to be a u8.
 The following byte is usually 0, but has been seen to be 1 sometimes,
 although the meaning of this is not understood.
 
+Following this is a 32-bit flag region, which contains information
+about the encoding style of the file. Here is where the file states
+whether immediate or indexed colour is being used, for example, but
+it is not yet understood what information is conveyed, or how.
+
 At offset 0x10 is the xy coordinates of the HotSpot, which for game
 objects is the centre of the object on the ground. For non-game
 objects this seems to always be 0.
@@ -109,10 +114,9 @@ array of all the colours in the 16-bit colour format described below.
 ## FRAM Chunks
 
 **Note: .TGR files seem to implement a number of**
-**different encodings, and the below information does**
+**different encodings, and the below information doesn't**
 **describe all of them yet, and currently only covers**
-**the run-length encoded bitmaps used for large images**
-**such as the splash screen and some smaller buttons**
+**the run-length encoded bitmaps used for still images**
 
 The FRAM chunk is the part of the container that contains the actual
 image data, although the specific layout of that data depends on
@@ -130,8 +134,8 @@ are arranged as follows:
 
 `[8X] XX 00 [8Y] YY`
 
-where [X]XX is the total length of the data forming the line
-(including the 5-byte header) and [Y]YY specifies the length of the
+where `[X]XX` is the total length of the data forming the line
+(including the 5-byte header) and `[Y]YY` specifies the length of the
 decoded line, and bracketed sections are only present in longer lines.
 
 If the length is less than 128 bytes/pixels then the value is just
@@ -140,6 +144,14 @@ representation, with the highest-order bit always set as a flag to
 signal that the longer form is being used. In this sense the two
 formats operate as 7-bit and 15-bit numbers, each of which starts
 with a single-bit flag indicating which form is in use. 
+
+#### In Sprites:
+Files containing sprite data seem to use the same format for PALT chunks,
+but a different way of encoding lines in the image, due to transparency.
+Each line appears to start with a 3-byte header containing the following:
+ - Number of bytes of data in the line
+ - Offset of the first non-transparent pixel in the line
+ - Number of non-transparent pixels encoded in the line
 
 ### Compression Scheme
 
