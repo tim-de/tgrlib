@@ -92,7 +92,7 @@ class Line:
                 self.pixel_length = data[2]
         else:
             total_length = read_line_length(in_fh)
-            in_fh.seek(1,1)
+            self.transparent_pixels = read_line_length(in_fh)
             self.pixel_length = read_line_length(in_fh)
         self.offset = in_fh.tell()
         self.data_length = total_length - (self.offset - header_offset)
@@ -199,41 +199,48 @@ class tgrFile:
         line = self.frames[frame_index].lines[line_index]
         fh.seek(line.offset)
         # print(f"Extracting line of length 0x{line.pixel_length:x}")
-        if self.is_sprite:
-            # print(f"Writing {line.transparent_pixels} transparent pixels")
-            for _ in range(line.transparent_pixels):
-                outbuf.append(Pixel(0, 0, 0, 0))
-            pixel_ix += line.transparent_pixels
+        for _ in range(line.transparent_pixels):
+            outbuf.append(Pixel(0, 255, 255, 0))
+        pixel_ix += line.transparent_pixels
         
         while line_ix < line.data_length:# and pixel_ix < line.pixel_length:
             run_header = fh.read(1)
             line_ix += 1
             (flag, run_length) = getRunData(run_header[0])
-            if flag == 1:
+            if flag == 0b000:
+                outbuf += [Pixel(0x0, 0x0, 0x0) for _ in range(run_length + increment)]
+            elif flag == 0b001:
                 pixel = self.get_next_pixel(fh)
                 outbuf += [pixel for _ in range(run_length+increment)]
                 pixel_ix += run_length+increment
                 line_ix += self.bits_per_px // 8
-            elif flag == 2:
+            elif flag == 0b010:
                 for _ in range(run_length+increment):
                     outbuf.append(self.get_next_pixel(fh))
                     line_ix += self.bits_per_px // 8
                     pixel_ix += 1
-            elif flag == 6:
+            elif flag == 0b011:
+                outbuf.append(Pixel(0x0, 0xff, 0xff))
+                #outbuf += [Pixel(0x0, 0xff, 0xff) for _ in range(run_length + increment)]
+            elif flag == 0b100:
+                outbuf += [Pixel(0xff, 0x0, 0x0) for _ in range(run_length + increment)]
+            elif flag == 0b101:
+                outbuf += [Pixel(0xff, 0, 0xff) for _ in range(run_length + increment)]
+            elif flag == 0b110:
                 outbuf.append(Pixel(8*run_length, 0, 0))
                 line_ix += 1
                 pixel_ix += 1
-            elif flag == 7:
+            elif flag == 0b111:
                 for _ in range(run_length+increment):
-                    outbuf.append(Pixel(8, 0, 0))
+                    outbuf.append(Pixel(0x55, 0xaa, 0x55))
                     pixel_ix += 1
                 fh.seek((run_length + 1) // 2, 1)
                 line_ix += ((run_length + 1) // 2) + 1
             else:
-                    print(f"{line_index:3d},{pixel_ix:3d}: Unsupported flag {flag} in datapoint 0x{run_header[0]:02x} at offset 0x{fh.tell()-1:08x}")
-        #if len(outbuf) < 3*line.pixel_length:
-        #    outbuf += b"\xff" * ((3*line.pixel_length) - len(outbuf))
-        return outbuf
-            
+                print(f"{line_index:3d},{pixel_ix:3d}: Unsupported flag {flag} in datapoint 0x{run_header[0]:02x} at offset 0x{fh.tell()-1:08x}")
+        if len(outbuf) < line.pixel_length:
+            print(f"Appending {line.pixel_length - len(outbuf)} pixels to line {line_index}")
+            outbuf += [Pixel(0x0, 0xff, 0xff) for _ in range(line.pixel_length - len(outbuf))]
+        return outbuf 
 if __name__ == "__main__":
     pass
