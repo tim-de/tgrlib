@@ -276,11 +276,28 @@ class tgrFile:
                     line_ix += 1
                     pixel_ix += 1
                 case 0b111:
-                    for _ in range(run_length+increment):
-                        outbuf.append(player_cols[15])
+                    read_length = (run_length + 1) // 2
+                    color_index = fh.read(read_length)
+                    line_ix += (read_length)
+                    
+                    for i, b in enumerate(color_index):
+                        # splits the byte into two 4bit sections, shifts left 1bit, and sets least sig to 1
+                        # then uses as index for player color value
+                        i1 = ((b >> 3) & 0b11111) | 0b1
+                        i2 = ((b << 1) & 0b11111) | 0b1
+                        p1 = player_cols[i1]
+                        p2 = player_cols[i2]
+                        print(f"{line_index:3d},{pixel_ix:3d}: byte {b:08b}, player color indecies {i1} & {i2} in datapoint 0x{run_header[0]:02x} at offset 0x{fh.tell()-1:08x}")
+                        outbuf.append(p1)
                         pixel_ix += 1
-                    fh.seek((run_length + 1) // 2, 1)
-                    line_ix += ((run_length + 1) // 2) + 1
+                        # Don't append trailing null padding on odd run lengths
+                        if (run_length % 2 == 0) or (i < len(color_index) - 1):
+                            print(f"writing 2nd pixel {p2} on loop {i} of {len(color_index)-1}")
+                            outbuf.append(p2)
+                            pixel_ix += 1
+                    
+                    #fh.seek(read_length, 1)
+                    
                 case _:
                     print(f"{line_index:3d},{pixel_ix:3d}: Unsupported flag {flag} in datapoint 0x{run_header[0]:02x} at offset 0x{fh.tell()-1:08x}")
         if len(outbuf) < line.pixel_length:
