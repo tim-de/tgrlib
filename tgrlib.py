@@ -58,6 +58,7 @@ class Pixel:
             case _:
                 raise Exception("Invalid pixel format specifier")
 
+shadow = Pixel(0, 0, 0, 0x80)
 transparency = Pixel(0x00, 0xff, 0xff, 0x00)
 
 player_cols: typing.List[Pixel] = [
@@ -160,9 +161,10 @@ class tgrFile:
     def __init__(self, filename: str, is_sprite=False):
         self.filename = filename
         self.iff = ifflib.iff_file(self.filename)
-        self.size = None
+        self.size: typing.Tuple[int, int] = (0,0)
         self.is_sprite = is_sprite
         self.framesizes = []
+        self.frameoffsets = []
         self.frames = []
 
     def load(self):
@@ -184,6 +186,7 @@ class tgrFile:
              self.offset_flag) = struct.unpack("xBBx", in_fh.read(4))
             self.size = struct.unpack("HH", in_fh.read(4))
             self.hotspot = struct.unpack("HH", in_fh.read(4))
+            print(self.size)
             
             #print(self.offset_flag)
             self.indexed_colour = index_mode & 0x7f == 0x1a
@@ -195,6 +198,7 @@ class tgrFile:
                 #in_fh.seek(4, 1)
                 #self.framesizes.append(struct.unpack("HH", in_fh.read(4)))
                 self.framesizes.append((1+lrx-ulx, 1+lry-uly, offset))
+                self.frameoffsets.append(((ulx, uly), (lrx, lry)))
         #print(len(self.framesizes))
 
     def load_palette(self):
@@ -259,9 +263,11 @@ class tgrFile:
                     outbuf.append(Pixel(0x0, 0xff, 0xff))
                     #outbuf += [Pixel(0x0, 0xff, 0xff) for _ in range(run_length + increment)]
                 case 0b100:
-                    outbuf += [Pixel(0xff, 0x0, 0x0) for _ in range(run_length + increment)]
+                    outbuf.append(Pixel(0xff, 0x00, 0x00))
+                    #outbuf += [Pixel(0xff, 0x0, 0x0) for _ in range(run_length + increment)]
                 case 0b101:
-                    outbuf += [Pixel(0xff, 0, 0xff) for _ in range(run_length + increment)]
+                    #outbuf.append(Pixel(0xff, 0x00, 0xff))
+                    outbuf += [shadow for _ in range(run_length + increment)]
                 case 0b110:
                     #print(f"flag 6 at 0x{fh.tell()-1:08x}")
                     outbuf.append(player_cols[run_length])
