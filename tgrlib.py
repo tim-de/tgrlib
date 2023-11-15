@@ -66,9 +66,9 @@ transparency = Pixel(0x00, 0xff, 0xff, 0x00)
 
 def load_player_colors(path: str = '.\COLORS.INI'):
     path = Path(path)
+    player_cols = {}
     if path.is_file():
-        with open(path+'r', "r") as fh:
-            player_cols = {}
+        with open(path, "r") as fh:
             last = fh.seek(0,2)
             fh.seek(0)
             while fh.tell() < last:
@@ -81,8 +81,9 @@ def load_player_colors(path: str = '.\COLORS.INI'):
                         player_cols[color].append(Pixel(*channels))
                     else:
                         player_cols[color] = [Pixel(*channels)]
+    # Backup blue player colors if file doesn't load
     else:
-        player_cols: typing.List[Pixel] = [
+        player_cols[2] = [
         	Pixel(1,4,45),
         	Pixel(1,4,45),
         	Pixel(3,7,51),
@@ -118,6 +119,7 @@ def load_player_colors(path: str = '.\COLORS.INI'):
         ]
     return player_cols
 
+player_cols = load_player_colors()
 
 
 def packPixel(value=(0,0,0), alpha=False):
@@ -255,7 +257,7 @@ class tgrFile:
             (raw_pixel,) = struct.unpack("H", in_fh.read(2))
             return Pixel.from_int(raw_pixel)
 
-    def extractLine(self, fh: io.BufferedReader, frame_index=0, line_index=0, increment=0):
+    def extractLine(self, fh: io.BufferedReader, frame_index=0, line_index=0, increment=0, color=2):
         outbuf = []
         line_ix = 0
         pixel_ix = 0
@@ -294,7 +296,7 @@ class tgrFile:
                     outbuf += [shadow for _ in range(run_length + increment)]
                 case 0b110:
                     #print(f"flag 6 at 0x{fh.tell()-1:08x}")
-                    outbuf.append(player_cols[run_length])
+                    outbuf.append(player_cols[color][run_length])
                     line_ix += 1
                     pixel_ix += 1
                 case 0b111:
@@ -305,11 +307,11 @@ class tgrFile:
                     for i, b in enumerate(color_index):
                         # splits the byte into two 4bit sections, shifts left 1bit, and sets least sig to 1
                         # then uses as index for player color value
-                        outbuf.append(player_cols[((b >> 3) & 0b11111) | 0b1])
+                        outbuf.append(player_cols[color][((b >> 3) & 0b11111) | 0b1])
                         pixel_ix += 1
                         # Don't append trailing null padding on odd run lengths
                         if (run_length % 2 == 0) or (i < len(color_index) - 1):
-                            outbuf.append(player_cols[((b << 1) & 0b11111) | 0b1])
+                            outbuf.append(player_cols[color][((b << 1) & 0b11111) | 0b1])
                             pixel_ix += 1                    
                 case _:
                     print(f"{line_index:3d},{pixel_ix:3d}: Unsupported flag {flag} in datapoint 0x{run_header[0]:02x} at offset 0x{fh.tell()-1:08x}")
