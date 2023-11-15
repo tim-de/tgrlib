@@ -64,7 +64,7 @@ class Pixel:
 shadow = Pixel(0, 0, 0, 0x80)
 transparency = Pixel(0x00, 0xff, 0xff, 0x00)
 
-def load_player_colors(path: str = '.\COLORS.INI'):
+def load_player_colors(path: str = 'COLORS.INI'):
     path = Path(path)
     player_cols = {}
     if path.is_file():
@@ -143,23 +143,11 @@ def decodePixel(half_word: int):
 
 class Line:
     def __init__(self, in_fh: io.BufferedReader, sprite=False):
+        _ = sprite
         header_offset = in_fh.tell()
-        if sprite:
-            # print("Fetching sprite line data")
-            data = in_fh.read(3)
-            if len(data) < 3:
-                self.data_length = 0
-                self.transparent_pixels = 0
-                self.pixel_length = 0
-                return
-            else:
-                total_length = data[0]
-                self.transparent_pixels = data[1]
-                self.pixel_length = data[2]
-        else:
-            total_length = read_line_length(in_fh)
-            self.transparent_pixels = read_line_length(in_fh)
-            self.pixel_length = read_line_length(in_fh)
+        total_length = read_line_length(in_fh)
+        self.transparent_pixels = read_line_length(in_fh)
+        self.pixel_length = read_line_length(in_fh)
         self.offset = in_fh.tell()
         self.data_length = total_length - (self.offset - header_offset)
                 
@@ -169,8 +157,8 @@ class Frame:
         self.lines = []
         while True:
             newline = Line(in_fh, False)
-            if newline.data_length == 0:
-                break
+            #if newline.data_length == 0:
+            #    continue
             self.lines.append(newline)
             if len(self.lines) >= self.size[1]:
                 break
