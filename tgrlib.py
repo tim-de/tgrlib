@@ -5,6 +5,7 @@ import struct
 import io
 import typing
 from dataclasses import dataclass
+from pathlib import Path
 
 def read_line_length(in_fh: io.BufferedReader):
     rawlen = in_fh.read(2)
@@ -63,40 +64,61 @@ class Pixel:
 shadow = Pixel(0, 0, 0, 0x80)
 transparency = Pixel(0x00, 0xff, 0xff, 0x00)
 
-player_cols: typing.List[Pixel] = [
-	Pixel(1,4,45),
-	Pixel(1,4,45),
-	Pixel(3,7,51),
-	Pixel(4,11,59),
-	Pixel(6,15,66),
-	Pixel(7,19,74),
-	Pixel(9,23,82),
-	Pixel(10,26,90),
-	Pixel(13,30,97),
-	Pixel(14,34,103),
-	Pixel(15,37,109),
-	Pixel(17,40,114),
-	Pixel(18,44,120),
-	Pixel(20,48,126),
-	Pixel(23,52,132),
-	Pixel(26,57,139),
-	Pixel(30,63,146),
-	Pixel(34,69,153),
-	Pixel(40,78,162),
-	Pixel(48,89,171),
-	Pixel(56,100,180),
-	Pixel(65,111,189),
-	Pixel(74,123,198),
-	Pixel(83,134,206),
-	Pixel(91,144,213),
-	Pixel(98,154,219),
-	Pixel(105,162,225),
-	Pixel(111,170,231),
-	Pixel(117,178,236),
-	Pixel(123,185,241),
-	Pixel(128,191,245),
-	Pixel(132,197,249),
-]
+def load_player_colors(path: str = '.\COLORS.INI'):
+    path = Path(path)
+    if path.is_file():
+        with open(path+'r', "r") as fh:
+            player_cols = {}
+            last = fh.seek(0,2)
+            fh.seek(0)
+            while fh.tell() < last:
+                line = "".join(fh.readline().split())
+                if line.startswith('Color_'):
+                    color = int(line.split('_')[1])
+                    channels = [int(c) for c in line.split('=')[1].split(',')]
+                    
+                    if color in player_cols.keys():
+                        player_cols[color].append(Pixel(*channels))
+                    else:
+                        player_cols[color] = [Pixel(*channels)]
+    else:
+        player_cols: typing.List[Pixel] = [
+        	Pixel(1,4,45),
+        	Pixel(1,4,45),
+        	Pixel(3,7,51),
+        	Pixel(4,11,59),
+        	Pixel(6,15,66),
+        	Pixel(7,19,74),
+        	Pixel(9,23,82),
+        	Pixel(10,26,90),
+        	Pixel(13,30,97),
+        	Pixel(14,34,103),
+        	Pixel(15,37,109),
+        	Pixel(17,40,114),
+        	Pixel(18,44,120),
+        	Pixel(20,48,126),
+        	Pixel(23,52,132),
+        	Pixel(26,57,139),
+        	Pixel(30,63,146),
+        	Pixel(34,69,153),
+        	Pixel(40,78,162),
+        	Pixel(48,89,171),
+        	Pixel(56,100,180),
+        	Pixel(65,111,189),
+        	Pixel(74,123,198),
+        	Pixel(83,134,206),
+        	Pixel(91,144,213),
+        	Pixel(98,154,219),
+        	Pixel(105,162,225),
+        	Pixel(111,170,231),
+        	Pixel(117,178,236),
+        	Pixel(123,185,241),
+        	Pixel(128,191,245),
+        	Pixel(132,197,249),
+        ]
+    return player_cols
+
+
 
 def packPixel(value=(0,0,0), alpha=False):
     if len(value) < 3:
