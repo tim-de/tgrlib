@@ -112,9 +112,9 @@ def decodePixel(half_word: int):
     # place value.
     # Bitwise AND masks off the unwanted bits to leave
     # only the desired channel.
-    blue = (half_word << 3) & 0xff
-    green = (half_word >> 3) & 0xfc
-    red = (half_word >> 8) & 0xf8
+    blue = round((half_word & 0b11111) / 31 * 255)
+    green = round(((half_word >> 5) & 0b111111) / 63 * 255)
+    red = round(((half_word >> 11) & 0b11111) / 31 * 255)
     return Pixel(red, green, blue)
 
 class Line:
