@@ -10,6 +10,11 @@ if __name__ == "__main__":
         print("Provide a file to unpack")
         exit()
     image_path = sys.argv[1]
+    
+    if len(sys.argv) > 2:
+        player_color = int(sys.argv[2])
+    else:
+        player_color = 2
 
     imagefile = tgrlib.tgrFile(image_path, False)
 
@@ -33,7 +38,7 @@ if __name__ == "__main__":
         imagedata = b""
         with open(image_path, "rb") as in_fh:
             for idx in range(len(frame.lines)):
-                rawline = imagefile.extractLine(in_fh, frame_index=frame_index, line_index=idx, increment=0)
+                rawline = imagefile.extractLine(in_fh, frame_index=frame_index, line_index=idx, increment=0, color=player_color)
                 #print(f"{idx+1:3d}: 0x{frame.lines[idx].offset:06x}, {len(rawline)}")
                 if len(rawline) < frame.size[0]:
                     rawline += [tgrlib.transparency for _ in range(frame.size[0] - len(rawline))]

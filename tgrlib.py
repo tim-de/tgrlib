@@ -5,6 +5,7 @@ import struct
 import io
 import typing
 from dataclasses import dataclass
+from pathlib import Path
 
 def read_line_length(in_fh: io.BufferedReader):
     rawlen = in_fh.read(2)
@@ -44,9 +45,11 @@ class Pixel:
         # place value.
         # Bitwise AND masks off the unwanted bits to leave
         # only the desired channel.
-        blue = (half_word << 3) & 0xff
-        green = (half_word >> 3) & 0xfc
-        red = (half_word >> 8) & 0xf8
+        
+        blue = round((half_word & 0b11111) / 31 * 255)
+        green = round(((half_word >> 5) & 0b111111) / 63 * 255)
+        red = round(((half_word >> 11) & 0b11111) / 31 * 255)
+
         return cls(red, green, blue)
 
     def pack_to_bin(self, format: str ="RGB") -> bytes:
@@ -61,40 +64,63 @@ class Pixel:
 shadow = Pixel(0, 0, 0, 0x80)
 transparency = Pixel(0x00, 0xff, 0xff, 0x00)
 
-player_cols: typing.List[Pixel] = [
-	Pixel(1,4,45),
-	Pixel(1,4,45),
-	Pixel(3,7,51),
-	Pixel(4,11,59),
-	Pixel(6,15,66),
-	Pixel(7,19,74),
-	Pixel(9,23,82),
-	Pixel(10,26,90),
-	Pixel(13,30,97),
-	Pixel(14,34,103),
-	Pixel(15,37,109),
-	Pixel(17,40,114),
-	Pixel(18,44,120),
-	Pixel(20,48,126),
-	Pixel(23,52,132),
-	Pixel(26,57,139),
-	Pixel(30,63,146),
-	Pixel(34,69,153),
-	Pixel(40,78,162),
-	Pixel(48,89,171),
-	Pixel(56,100,180),
-	Pixel(65,111,189),
-	Pixel(74,123,198),
-	Pixel(83,134,206),
-	Pixel(91,144,213),
-	Pixel(98,154,219),
-	Pixel(105,162,225),
-	Pixel(111,170,231),
-	Pixel(117,178,236),
-	Pixel(123,185,241),
-	Pixel(128,191,245),
-	Pixel(132,197,249),
-]
+def load_player_colors(path: str = '.\COLORS.INI'):
+    path = Path(path)
+    player_cols = {}
+    if path.is_file():
+        with open(path, "r") as fh:
+            last = fh.seek(0,2)
+            fh.seek(0)
+            while fh.tell() < last:
+                line = "".join(fh.readline().split())
+                if line.startswith('Color_'):
+                    color = int(line.split('_')[1])
+                    channels = [int(c) for c in line.split('=')[1].split(',')]
+                    
+                    if color in player_cols.keys():
+                        player_cols[color].append(Pixel(*channels))
+                    else:
+                        player_cols[color] = [Pixel(*channels)]
+    # Backup blue player colors if file doesn't load
+    else:
+        player_cols[2] = [
+        	Pixel(1,4,45),
+        	Pixel(1,4,45),
+        	Pixel(3,7,51),
+        	Pixel(4,11,59),
+        	Pixel(6,15,66),
+        	Pixel(7,19,74),
+        	Pixel(9,23,82),
+        	Pixel(10,26,90),
+        	Pixel(13,30,97),
+        	Pixel(14,34,103),
+        	Pixel(15,37,109),
+        	Pixel(17,40,114),
+        	Pixel(18,44,120),
+        	Pixel(20,48,126),
+        	Pixel(23,52,132),
+        	Pixel(26,57,139),
+        	Pixel(30,63,146),
+        	Pixel(34,69,153),
+        	Pixel(40,78,162),
+        	Pixel(48,89,171),
+        	Pixel(56,100,180),
+        	Pixel(65,111,189),
+        	Pixel(74,123,198),
+        	Pixel(83,134,206),
+        	Pixel(91,144,213),
+        	Pixel(98,154,219),
+        	Pixel(105,162,225),
+        	Pixel(111,170,231),
+        	Pixel(117,178,236),
+        	Pixel(123,185,241),
+        	Pixel(128,191,245),
+        	Pixel(132,197,249),
+        ]
+    return player_cols
+
+player_cols = load_player_colors()
+
 
 def packPixel(value=(0,0,0), alpha=False):
     if len(value) < 3:
@@ -110,9 +136,9 @@ def decodePixel(half_word: int):
     # place value.
     # Bitwise AND masks off the unwanted bits to leave
     # only the desired channel.
-    blue = (half_word << 3) & 0xff
-    green = (half_word >> 3) & 0xfc
-    red = (half_word >> 8) & 0xf8
+    blue = round((half_word & 0b11111) / 31 * 255)
+    green = round(((half_word >> 5) & 0b111111) / 63 * 255)
+    red = round(((half_word >> 11) & 0b11111) / 31 * 255)
     return Pixel(red, green, blue)
 
 class Line:
@@ -231,7 +257,7 @@ class tgrFile:
             (raw_pixel,) = struct.unpack("H", in_fh.read(2))
             return Pixel.from_int(raw_pixel)
 
-    def extractLine(self, fh: io.BufferedReader, frame_index=0, line_index=0, increment=0):
+    def extractLine(self, fh: io.BufferedReader, frame_index=0, line_index=0, increment=0, color=2):
         outbuf = []
         line_ix = 0
         pixel_ix = 0
@@ -270,15 +296,23 @@ class tgrFile:
                     outbuf += [shadow for _ in range(run_length + increment)]
                 case 0b110:
                     #print(f"flag 6 at 0x{fh.tell()-1:08x}")
-                    outbuf.append(player_cols[run_length])
+                    outbuf.append(player_cols[color][run_length])
                     line_ix += 1
                     pixel_ix += 1
                 case 0b111:
-                    for _ in range(run_length+increment):
-                        outbuf.append(player_cols[15])
+                    read_length = (run_length + 1) // 2
+                    color_index = fh.read(read_length)
+                    line_ix += read_length
+                    
+                    for i, b in enumerate(color_index):
+                        # splits the byte into two 4bit sections, shifts left 1bit, and sets least sig to 1
+                        # then uses as index for player color value
+                        outbuf.append(player_cols[color][((b >> 3) & 0b11111) | 0b1])
                         pixel_ix += 1
-                    fh.seek((run_length + 1) // 2, 1)
-                    line_ix += ((run_length + 1) // 2) + 1
+                        # Don't append trailing null padding on odd run lengths
+                        if (run_length % 2 == 0) or (i < len(color_index) - 1):
+                            outbuf.append(player_cols[color][((b << 1) & 0b11111) | 0b1])
+                            pixel_ix += 1                    
                 case _:
                     print(f"{line_index:3d},{pixel_ix:3d}: Unsupported flag {flag} in datapoint 0x{run_header[0]:02x} at offset 0x{fh.tell()-1:08x}")
         if len(outbuf) < line.pixel_length:
