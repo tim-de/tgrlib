@@ -221,7 +221,7 @@ class tgrFile:
         self.palette = []
         with open(self.filename, "rb") as in_fh:
             in_fh.seek(palt.data_offset)
-            (count,) = struct.unpack("<I", in_fh.read(4))
+            (count,) = struct.unpack("<Hxx", in_fh.read(4))
             print(count)
             for _ in range(count):
                 raw_pixel = in_fh.read(2)
