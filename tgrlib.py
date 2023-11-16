@@ -274,11 +274,18 @@ class tgrFile:
                         line_ix += self.bits_per_px // 8
                         pixel_ix += 1
                 case 0b011:
-                    outbuf.append(Pixel(0x0, 0xff, 0xff))
-                    #outbuf += [Pixel(0x0, 0xff, 0xff) for _ in range(run_length + increment)]
+                    intensity = fh.read(1)
+                    line_ix +=1
+                    # TODO use intensity to set luminosity of pixels
+                    pixel = self.get_next_pixel(fh)
+                    outbuf += [pixel for _ in range(run_length+increment)]
+                    pixel_ix += run_length+increment
+                    line_ix += self.bits_per_px // 8
                 case 0b100:
-                    outbuf.append(Pixel(0xff, 0x00, 0x00))
-                    #outbuf += [Pixel(0xff, 0x0, 0x0) for _ in range(run_length + increment)]
+                    # TODO use run_length to calculate luminosity
+                    outbuf.append(self.get_next_pixel(fh))
+                    line_ix += self.bits_per_px // 8
+                    pixel_ix += 1
                 case 0b101:
                     #outbuf.append(Pixel(0xff, 0x00, 0xff))
                     outbuf += [shadow for _ in range(run_length + increment)]
