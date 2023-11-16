@@ -296,7 +296,6 @@ class tgrFile:
                 case 0b110:
                     #print(f"flag 6 at 0x{fh.tell()-1:08x}")
                     outbuf.append(player_cols[color][run_length])
-                    line_ix += 1
                     pixel_ix += 1
                 case 0b111:
                     read_length = (run_length + 1) // 2
