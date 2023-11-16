@@ -179,6 +179,18 @@ length is now used to store the number of pixels of this colour. Furthermore,
 for `111` bytes, there are a number of following null bytes that seems to have some
 relation to the number of pixels being encoded, although this is not yet clear.
 
+| Flag | What it Encodes | Example |
+| --- | --- | --- |
+| 0b000 | A run_length series of transparent pixels | 0x05 = five transparent pixels |
+| 0b001 | A run_length series of identical pixels with the color defined by the next (bit_depth / 8 ) bytes | 0x25 FF FF = five white pixels
+| 0b010 | A run_length series of individual pixels, each defined by (bit_depth / 8 ) bytes | 0x42 FF FF 00 00 = a white pixel followed by a black pixel
+| 0b011 | A run_length series of pixels with transparency defined by the next byte and color defined by the following (bit_depth / 8 ) bytes | 0x65 07 E0 07 = five green pixels with 25% transparency |
+| 0b100 | A single pixel with transparency defined by run_length and color defined by the next (bit_depth / 8 ) bytes | 0x8F E0 07 = a green pixel with 50% transparency |
+| 0b101 | A run_length series of 'shadow' pixels | 0xB1 = 17 'shadow' pixels |
+| 0b110 | A single player-color pixel, with color index defined by run_length | 0xC8 = a pixel with the 8th color in the player color list |
+| 0b111 | A run_length series of player-color pixels, with each color index packed in 4 bits. Any remaining bits are padded with 0s to the nearest byte | 0xE3 79 A0 = three pixels with the 15th, 18th, and 20th player colors, respectively |
+
+
 ### Colour format
 All the images I have decoded have used 16-bit colour, with pixels arranged as follows
 in the file, with bit offsets shown both within the entire 16-bit value, and within each
