@@ -2,19 +2,25 @@
 
 import sys
 import tgrlib
+import argparse
 from PIL import Image
 from pathlib import Path
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Provide a file to unpack")
-        exit()
-    image_path = sys.argv[1]
+    parser = argparse.ArgumentParser(
+                        prog='readfram',
+                        description='Reads a .TGR asset file and extracts each image frame to a .PNG',
+                        epilog='')
     
-    if len(sys.argv) > 2:
-        player_color = int(sys.argv[2])
-    else:
-        player_color = 2
+    parser.add_argument('image_path')
+    parser.add_argument('-c', '--color', choices=range(1,9), default=2, type=int)
+    parser.add_argument('--align-frames', action='store_true', default=True)
+    
+    args = parser.parse_args()
+    
+    image_path = args.image_path
+    
+    player_color = args.color
 
     imagefile = tgrlib.tgrFile(image_path, False)
 
