@@ -3,7 +3,7 @@
 import ifflib
 import struct
 import io
-import sys
+#import sys
 import typing
 from dataclasses import dataclass
 from pathlib import Path
@@ -275,7 +275,9 @@ class tgrFile:
                         line_ix += self.bits_per_px // 8
                         pixel_ix += 1
                 case 0b011:
-                    alpha = round(int.from_bytes(fh.read(1),byteorder=sys.byteorder) / 31 * 255) # convert alpha channel from 5 bits to 8 bits
+                    alpha_raw = fh.read(1)[0] & 31
+                    alpha = round((alpha_raw / 31) * 255)
+                    #alpha = round(int.from_bytes(fh.read(1),byteorder=sys.byteorder) / 31 * 255) & 255# convert alpha channel from 5 bits to 8 bits
                     line_ix +=1
                     #print(f"alpha: {alpha}")
                     # TODO use intensity to set luminosity of pixels
