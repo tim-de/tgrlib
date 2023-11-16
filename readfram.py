@@ -15,6 +15,8 @@ if __name__ == "__main__":
     parser.add_argument('image_path')
     parser.add_argument('-c', '--color', choices=range(1,9), default=2, type=int)
     parser.add_argument('--no-align-frames', action='store_true')
+    parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--single-frame', default=-1, type=int)
     
     args = parser.parse_args()
     
@@ -34,7 +36,8 @@ if __name__ == "__main__":
     pixel_format = "RGBA"
 
     for frame_index, frame in enumerate(imagefile.frames):
-
+        if args.single_frame != -1 and args.single_frame != frame_index:
+            continue
     #print(imagefile.framecount)
     # frame = imagefile.frames[frame_index]
 
