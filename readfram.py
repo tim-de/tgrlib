@@ -14,7 +14,7 @@ if __name__ == "__main__":
     
     parser.add_argument('image_path')
     parser.add_argument('-c', '--color', choices=range(1,9), default=2, type=int)
-    parser.add_argument('--align-frames', action='store_true', default=True)
+    parser.add_argument('--no-align-frames', action='store_true')
     
     args = parser.parse_args()
     
@@ -39,8 +39,11 @@ if __name__ == "__main__":
     # frame = imagefile.frames[frame_index]
 
         print(frame_index, frame.size)
-        image = Image.new(pixel_format, imagefile.size)
-        fram_img = Image.new(pixel_format, frame.size)
+        if args.no_align_frames:
+            image = Image.new(pixel_format, frame.size)
+        else:
+            image = Image.new(pixel_format, imagefile.size)
+            fram_img = Image.new(pixel_format, frame.size)
         imagedata = b""
         with open(image_path, "rb") as in_fh:
             for idx in range(len(frame.lines)):
@@ -57,9 +60,12 @@ if __name__ == "__main__":
         target_len = (frame.size[0] * frame.size[1]) * (3 if format == "RGB" else 4)
         if len(imagedata) < target_len:
             imagedata += bytes([0x00 for _ in range(target_len - len(imagedata))])
-        fram_img.frombytes(imagedata)
-        offset = imagefile.frameoffsets[frame_index][0]
-        image.paste(fram_img, offset)
+        if args.no_align_frames:
+            image.frombytes(imagedata)
+        else:
+            fram_img.frombytes(imagedata)
+            offset = imagefile.frameoffsets[frame_index][0]
+            image.paste(fram_img, offset)
         image.save(f"{image_name}/fram_{frame_index}.png")
 
         #image.save(f"{image_name}.png")
