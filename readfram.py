@@ -24,7 +24,7 @@ if __name__ == "__main__":
     
     player_color = args.color
 
-    imagefile = tgrlib.tgrFile(image_path, False)
+    imagefile = tgrlib.tgrFile(image_path, 'TGR', False)
 
     imagefile.load()
 

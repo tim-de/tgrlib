@@ -3,10 +3,13 @@
 import ifflib
 import struct
 import io
-#import sys
+import sys
 import typing
 from dataclasses import dataclass
 from pathlib import Path
+from PIL import Image
+
+verbose = True
 
 def read_line_length(in_fh: io.BufferedReader):
     rawlen = in_fh.read(2)
@@ -52,6 +55,14 @@ class Pixel:
         red = round(((half_word >> 11) & 0b11111) / 31 * 255)
 
         return cls(red, green, blue)
+    
+    def to_int(self):
+        r5 = round(self.red / 255 * 31)
+        g6 = round(self.green / 255 * 63)
+        b5 = round(self.blue / 255 * 31)
+        a5 = round(self.alpha / 255 * 31)
+        
+        return (r5, g6, b5, a5)
 
     def pack_to_bin(self, format: str ="RGB") -> bytes:
         match format:
@@ -173,9 +184,17 @@ class tgrFile:
         # TODO: add methods for decoding a frame into either a list of bytes
         #       or a PIL image (but might be best to keep it light on dependencies)
                 
-    def __init__(self, filename: str, is_sprite=False):
+    def __init__(self, filename: str, read_from: str, is_sprite=False):
         self.filename = filename
-        self.iff = ifflib.iff_file(self.filename)
+        self.read_from = read_from
+        match self.read_from:
+            case 'TGR':
+                self.iff = ifflib.iff_file(self.filename)
+            case 'PNG':
+                self.img = Image.open(self.filename)
+            case _:
+                print(f"Error: invalid read type {self.read_from}")
+                
         self.size: typing.Tuple[int, int] = (0,0)
         self.is_sprite = is_sprite
         self.framesizes = []
@@ -183,13 +202,20 @@ class tgrFile:
         self.frames = []
 
     def load(self):
-        self.iff.load()
-        if self.iff.data.formtype != "TGAR":
-            print(f"Error: invalid file type: {self.iff.data.formtype}")
-        self.read_header()
-        if self.indexed_colour:
-            self.load_palette()
-        self.get_frames()
+        match self.read_from:
+            case 'TGR':
+                self.iff.load()
+                if self.iff.data.formtype != "TGAR":
+                    print(f"Error: invalid file type: {self.iff.data.formtype}")
+                self.read_header()
+                if self.indexed_colour:
+                    self.load_palette()
+                self.get_frames()
+            case 'PNG':
+                self.img_data = self.img.getdata()
+                self.size = self.img.size
+                
+                
 
     def read_header(self):
         with open(self.filename, "rb") as in_fh:
@@ -318,6 +344,115 @@ class tgrFile:
         if len(outbuf) < line.pixel_length:
             print(f"Appending {line.pixel_length - len(outbuf)} pixels to line {line_index}")
             outbuf += [transparency for _ in range(line.pixel_length - len(outbuf))]
-        return outbuf 
+        return outbuf
+    
+    def look_ahead(self, p: Pixel, line_index, pixel_ix, matching=True):
+        collected = 0
+        if matching:
+            while p == Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + 1 + collected]):
+                collected += 1
+                if collected == 30:
+                    break
+            return collected
+        else:
+            while Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected]) != Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected + 1]) and Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected]).alpha == 255:
+                print(f"    Look_Ahead: pixel {Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected])} at c:{pixel_ix + collected} doesn't match pixel {Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected + 1])} at c:{pixel_ix + collected + 1}")
+                collected += 1
+                if collected == 31:
+                    break
+            return collected
+        
+    
+    def encodeLine(self, line_index=0):
+        out_fh = open('outfile.tgr','wb')
+        if verbose:
+            print(f"image size:{self.size}")
+        pixel_ix = 0
+        
+        while pixel_ix < self.size[0]:
+            
+            p = Pixel(*self.img_data[line_index*self.size[0] + pixel_ix])
+            if verbose:
+                print(f'reading p:{p} at l:{line_index} c:{pixel_ix}')
+
+            if p.alpha == 0:        # Encode transparent pixels
+                if verbose:
+                    print(f'  chose flag 0b000')
+                flag = 0b000 << 5
+                run_length = self.look_ahead(p, line_index, pixel_ix) + 1
+                header = flag + (run_length & 0b11111)
+                out_fh.write(struct.pack('<B', header))
+                pixel_ix += run_length
+                if verbose:
+                    print(f'  packing header {header:02X}\n  advanced to c:{pixel_ix}')
+                
+            elif p.alpha < 255:     #Encode translucent pixels                    
+                run_length = self.look_ahead(p, line_index, pixel_ix) + 1
+                (r,g,b,a) = p.to_int()
+                if run_length == 1:
+                    if verbose:
+                        print(f'  chose flag 0b100')
+                    flag = 0b100 << 5
+                    header = flag + (a & 0b11111)
+                    body = (r << 11) + (g << 5) + b
+                    if verbose:
+                        print(f"  packing header {header:02X} and body {body:04X}")
+                    out_fh.write(struct.pack('<BH', header, body))
+                else:
+                    if verbose:
+                        print(f'  chose flag 0b011')
+                    flag = 0b011 << 5
+                    header = flag + (run_length & 0b11111)
+                    body = (r << 11) + (g << 5) + b
+                    out_fh.write(struct.pack('<BBH', header, a, body))
+                    if verbose:
+                        print(f'  packing header {header:02X} alpha {a:02X} and body {body:04X}')
+                pixel_ix += run_length
+                if verbose:
+                    print(f'  advanced to c:{pixel_ix}')
+                
+            else:                   # Encode opaque pixels
+                matching = self.look_ahead(p, line_index, pixel_ix)
+                if matching:
+                    if verbose:
+                        print(f'  chose flag 0b001')
+                    flag = 0b001 << 5
+                    run_length = matching + 1
+                    header = flag + (run_length & 0b11111)
+                    (r,g,b,a) = p.to_int()
+                    body = (r << 11) + (g << 5) + b
+                    out_fh.write(struct.pack('<BH', header, body))
+                    pixel_ix += run_length
+                    if verbose:
+                        print(f'  packing header {header:02X} and body {body:04X}\n  advanced to c:{pixel_ix}')
+                else:
+                    if verbose:
+                        print(f'  chose flag 0b010')
+                    run_length = self.look_ahead(p, line_index, pixel_ix, matching=False)
+                    if verbose:
+                        print(f'  found {run_length} unique pixels')
+                    flag = 0b010 << 5
+                    header = flag + (run_length & 0b11111)
+                    out_fh.write(struct.pack('<B', header))
+                    if verbose:
+                        print(f'  packing header {header:02X}')
+                    for i in range(pixel_ix,pixel_ix+run_length):
+                        (r,g,b,a) = Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + i]).to_int()
+                        if verbose:
+                            print(f'    r:{r} g:{g} b:{b} a:{a}')
+                        body = (r << 11) + (g << 5) + b
+                        out_fh.write(struct.pack('<H', body))
+                        if verbose:
+                            print(f'    packing body:{body:04X}')
+                    pixel_ix += run_length
+                    if verbose:
+                        print(f'  advanced to c:{pixel_ix}')
+                    
+                    
+            # Read pixels
+            # If pixel has alpha value, check if transparent count how many pixels have identical values, then encode run of 0b100 if 1, or 0b011 if 2+
+            
+        out_fh.close()
+        
 if __name__ == "__main__":
     pass
