@@ -3,7 +3,9 @@ import tgrlib
 imagefile = tgrlib.tgrFile('./ADELLON_MAJERE_PORTRAIT/fram_0.png', 'PNG')
 imagefile.load()
 #imagefile.encodeLine(line_index=0)
-imagefile.encodeLine(line_index=1)
+data = imagefile.encodeFrame(frame_index=0)
+with open('./outfile.tgr','wb') as fh_out:
+    fh_out.write(data)
 
 
 
