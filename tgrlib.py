@@ -364,6 +364,32 @@ class tgrFile:
                     break
             print(f'      Look_Ahead: collected {collected} individual pixels')
             return collected
+    
+    def encodeLineHeader(self, line_index, outbuf, ct_pixels):
+        line_length = len(outbuf)
+        header_length = 3
+        
+        assert line_length <= 0x7FFA, f'l:{line_index} line length {line_length} exceeds 15 bit maximum'
+        assert ct_pixels <= 0x7FFF, f'l:{line_index} pixel count {ct_pixels} exceeds 15 bit maximum'
+             
+        if line_length > 0x7F:
+            line_length = line_length | 0x8000
+            lfc = 'H'
+            header_length += 1
+        else:
+            lfc = 'B'
+        
+        if ct_pixels > 0x7F:
+            ct_pixels = ct_pixels | 0x8000
+            pfc = 'H'
+            header_length += 1
+        else:
+            pfc = 'B'
+        
+        offset = 0  # Will update once frame size calculations are implemented
+        
+        return struct.pack('>'+lfc+'B'+pfc, line_length+header_length, offset, ct_pixels) + outbuf
+        
         
     
     def encodeLine(self, line_index=0):
@@ -371,6 +397,8 @@ class tgrFile:
         if verbose:
             print(f"image size:{self.size}")
         pixel_ix = 0
+        trans_offset = 0
+        ct_pixels = 0
         
         outbuf = b''
         
@@ -391,8 +419,6 @@ class tgrFile:
 #             out_fh.write(struct.pack('<H', body))
 #             pixel_ix += 1
 # =============================================================================
-            
-            
             if p.alpha == 0:        # Encode transparent pixels
                 if verbose:
                     print(f'  chose flag 0b000')
@@ -401,6 +427,7 @@ class tgrFile:
                 header = flag + (run_length & 0b11111)
                 outbuf += struct.pack('<B', header)
                 pixel_ix += run_length
+                ct_pixels += run_length
                 if verbose:
                     print(f'  packing header {header:02X}\n  advanced to c:{pixel_ix}')
                 
@@ -426,6 +453,7 @@ class tgrFile:
                     if verbose:
                         print(f'  packing header {header:02X} alpha {a:02X} and body {body:04X}')
                 pixel_ix += run_length
+                ct_pixels += run_length
                 if verbose:
                     print(f'  advanced to c:{pixel_ix}')
                 
@@ -441,6 +469,7 @@ class tgrFile:
                     body = (r << 11) + (g << 5) + b
                     outbuf += struct.pack('<BH', header, body)
                     pixel_ix += run_length
+                    ct_pixels += run_length
                     if verbose:
                         print(f'  packing header {header:02X} and body {body:04X}\n  advanced to c:{pixel_ix}')
                 else:
@@ -464,14 +493,15 @@ class tgrFile:
                         if verbose:
                             print(f'    packing body:{body:04X}')
                     pixel_ix += run_length
+                    ct_pixels += run_length
                 if verbose:
                         print(f'  advanced to c:{pixel_ix}')
                     
                     
             # Read pixels
             # If pixel has alpha value, check if transparent count how many pixels have identical values, then encode run of 0b100 if 1, or 0b011 if 2+
-            
-        out_fh.write(outbuf)
+        linebuf = self.encodeLineHeader(line_index, outbuf, ct_pixels)    
+        out_fh.write(linebuf)
         out_fh.close()
         
 if __name__ == "__main__":
