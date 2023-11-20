@@ -349,7 +349,7 @@ class tgrFile:
     def look_ahead(self, p: Pixel, line_index, pixel_ix, matching=True):
         collected = 0
         if matching:
-            while p == Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + 1 + collected]):
+            while p == Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected + 1]):
                 collected += 1
                 if collected == 30:
                     break
@@ -360,6 +360,7 @@ class tgrFile:
                 collected += 1
                 if collected == 31:
                     break
+            print(f'      Look_Ahead: collected {collected} individual pixels')
             return collected
         
     
@@ -374,7 +375,20 @@ class tgrFile:
             p = Pixel(*self.img_data[line_index*self.size[0] + pixel_ix])
             if verbose:
                 print(f'reading p:{p} at l:{line_index} c:{pixel_ix}')
-
+            
+            
+# =============================================================================
+#             (r,g,b,a) = Pixel(*self.img_data[line_index*self.size[0] + pixel_ix]).to_int()
+#             if verbose:
+#                 print(f'    r:{r} g:{g} b:{b} a:{a}')
+#                 
+#             body = (r << 11) + (g << 5) + b
+#             print(f'    packing body:{body:04X}')
+#             out_fh.write(struct.pack('<H', body))
+#             pixel_ix += 1
+# =============================================================================
+            
+            
             if p.alpha == 0:        # Encode transparent pixels
                 if verbose:
                     print(f'  chose flag 0b000')
@@ -436,10 +450,11 @@ class tgrFile:
                     out_fh.write(struct.pack('<B', header))
                     if verbose:
                         print(f'  packing header {header:02X}')
-                    for i in range(pixel_ix,pixel_ix+run_length):
-                        (r,g,b,a) = Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + i]).to_int()
+                    for i in range(0,run_length):
+                        cur_pix = Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + i])
+                        (r,g,b,a) = cur_pix.to_int()
                         if verbose:
-                            print(f'    r:{r} g:{g} b:{b} a:{a}')
+                            print(f'    p:{cur_pix} r:{r} g:{g} b:{b} a:{a}')
                         body = (r << 11) + (g << 5) + b
                         out_fh.write(struct.pack('<H', body))
                         if verbose:
