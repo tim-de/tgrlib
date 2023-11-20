@@ -349,13 +349,15 @@ class tgrFile:
     def look_ahead(self, p: Pixel, line_index, pixel_ix, matching=True):
         collected = 0
         if matching:
-            while p == Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected + 1]):
+            while p == Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected + 1]) and pixel_ix + collected + 1 < self.size[0]:
                 collected += 1
                 if collected == 30:
                     break
             return collected
         else:
-            while Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected]) != Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected + 1]) and Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected]).alpha == 255:
+            if pixel_ix == self.size[0] - 1:    # If last pixel in row:
+                return 1                        # Return 1 pixel, don't compare
+            while Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected]) != Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected + 1]) and Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected]).alpha == 255 and pixel_ix + collected < self.size[0]:
                 print(f"    Look_Ahead: pixel {Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected])} at c:{pixel_ix + collected} doesn't match pixel {Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected + 1])} at c:{pixel_ix + collected + 1}")
                 collected += 1
                 if collected == 31:
@@ -369,6 +371,8 @@ class tgrFile:
         if verbose:
             print(f"image size:{self.size}")
         pixel_ix = 0
+        
+        outbuf = b''
         
         while pixel_ix < self.size[0]:
             
@@ -395,7 +399,7 @@ class tgrFile:
                 flag = 0b000 << 5
                 run_length = self.look_ahead(p, line_index, pixel_ix) + 1
                 header = flag + (run_length & 0b11111)
-                out_fh.write(struct.pack('<B', header))
+                outbuf += struct.pack('<B', header)
                 pixel_ix += run_length
                 if verbose:
                     print(f'  packing header {header:02X}\n  advanced to c:{pixel_ix}')
@@ -411,14 +415,14 @@ class tgrFile:
                     body = (r << 11) + (g << 5) + b
                     if verbose:
                         print(f"  packing header {header:02X} and body {body:04X}")
-                    out_fh.write(struct.pack('<BH', header, body))
+                    outbuf += struct.pack('<BH', header, body)
                 else:
                     if verbose:
                         print(f'  chose flag 0b011')
                     flag = 0b011 << 5
                     header = flag + (run_length & 0b11111)
                     body = (r << 11) + (g << 5) + b
-                    out_fh.write(struct.pack('<BBH', header, a, body))
+                    outbuf += struct.pack('<BBH', header, a, body)
                     if verbose:
                         print(f'  packing header {header:02X} alpha {a:02X} and body {body:04X}')
                 pixel_ix += run_length
@@ -435,7 +439,7 @@ class tgrFile:
                     header = flag + (run_length & 0b11111)
                     (r,g,b,a) = p.to_int()
                     body = (r << 11) + (g << 5) + b
-                    out_fh.write(struct.pack('<BH', header, body))
+                    outbuf += struct.pack('<BH', header, body)
                     pixel_ix += run_length
                     if verbose:
                         print(f'  packing header {header:02X} and body {body:04X}\n  advanced to c:{pixel_ix}')
@@ -447,7 +451,7 @@ class tgrFile:
                         print(f'  found {run_length} unique pixels')
                     flag = 0b010 << 5
                     header = flag + (run_length & 0b11111)
-                    out_fh.write(struct.pack('<B', header))
+                    outbuf += struct.pack('<B', header)
                     if verbose:
                         print(f'  packing header {header:02X}')
                     for i in range(0,run_length):
@@ -456,17 +460,18 @@ class tgrFile:
                         if verbose:
                             print(f'    p:{cur_pix} r:{r} g:{g} b:{b} a:{a}')
                         body = (r << 11) + (g << 5) + b
-                        out_fh.write(struct.pack('<H', body))
+                        outbuf += struct.pack('<H', body)
                         if verbose:
                             print(f'    packing body:{body:04X}')
                     pixel_ix += run_length
-                    if verbose:
+                if verbose:
                         print(f'  advanced to c:{pixel_ix}')
                     
                     
             # Read pixels
             # If pixel has alpha value, check if transparent count how many pixels have identical values, then encode run of 0b100 if 1, or 0b011 if 2+
             
+        out_fh.write(outbuf)
         out_fh.close()
         
 if __name__ == "__main__":
