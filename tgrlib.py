@@ -191,7 +191,14 @@ class tgrFile:
             case 'TGR':
                 self.iff = ifflib.iff_file(self.filename)
             case 'PNG':
-                self.img = Image.open(self.filename)
+                self.imgs = []
+                if self.filename.is_file():
+                    self.imgs.append(Image.open(self.filename))
+                elif self.filename.is_dir():
+                    for f in Path(self.filename).glob('*.'+read_from):
+                        if f.is_file():
+                            print(f)
+                            self.imgs.append(Image.open(f))
             case _:
                 print(f"Error: invalid read type {self.read_from}")
                 
