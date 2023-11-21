@@ -239,11 +239,8 @@ class tgrFile:
                         img = Image.fromarray(img[y0:y1+1, x0:x1+1, :])
                     
                     self.img_data.append(img.getdata())
-                    self.framesizes.append([x0, y0, x1, y1])
+                    self.framesizes.append([x1-x0, y1-y0, x0, y0, x1, y1])
                     
-                
-                
-                
 
     def read_header(self):
         with open(self.filename, "rb") as in_fh:
@@ -374,31 +371,35 @@ class tgrFile:
             outbuf += [transparency for _ in range(line.pixel_length - len(outbuf))]
         return outbuf
     
-    def look_ahead(self, p: Pixel, line_index, pixel_ix, matching=True):
+    def look_ahead(self, p: Pixel, frame_index, line_index, pixel_ix, matching=True):
         collected = 0
         if matching:
-            while pixel_ix + collected + 1 < self.size[0] and p == Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected + 1]):
+            print(f'frame_index:{frame_index} (max:{len(self.img_data)}) pixel:{pixel_ix + collected + 1} (max:{self.framesizes[frame_index][0]}) total:{line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1} (max:{len(self.img_data[frame_index])}) size_data:{self.framesizes[frame_index]}')
+            while pixel_ix + collected + 1 < self.framesizes[frame_index][0] and p == Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1]):
                 collected += 1
                 if collected == 30:
                     break
             return collected
         else:
-            if pixel_ix == self.size[0] - 1:    # If last pixel in row:
+            if pixel_ix == self.framesizes[frame_index][0] - 1:    # If last pixel in row:
                 return 1                        # Return 1 pixel, don't compare
-            while pixel_ix + collected < self.size[0] and Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected]) != Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected + 1]) and Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected]).alpha == 255:
-                print(f"    Look_Ahead: pixel {Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected])} at c:{pixel_ix + collected} doesn't match pixel {Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + collected + 1])} at c:{pixel_ix + collected + 1}")
+            while pixel_ix + collected < self.framesizes[frame_index][0] and Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected]) != Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1]) and Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected]).alpha == 255:
+                print(f"    Look_Ahead: pixel {Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected])} at c:{pixel_ix + collected} doesn't match pixel {Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1])} at c:{pixel_ix + collected + 1}")
                 collected += 1
                 if collected == 31:
                     break
             print(f'      Look_Ahead: collected {collected} individual pixels')
             return collected
     
-    def encodeLineHeader(self, line_index, outbuf, ct_pixels):
+    def encodeLineHeader(self, frame_index, line_index, outbuf, ct_pixels, offset=0):
+        print(outbuf)
         line_length = len(outbuf)
         header_length = 3
         
-        assert line_length <= 0x7FFA, f'l:{line_index} line length {line_length} exceeds 15 bit maximum'
-        assert ct_pixels <= 0x7FFF, f'l:{line_index} pixel count {ct_pixels} exceeds 15 bit maximum'
+        assert line_length <= 0x7FFA, f'f:{frame_index: >4} l:{line_index: >4} line length {line_length} exceeds 15 bit maximum'
+        assert offset <= 0xFF, f'f:{frame_index: >4} l:{line_index: >4} offset to first non-padding pixel exceeds 8 bit maximum'
+        assert ct_pixels <= 0x7FFF, f'f:{frame_index: >4} l:{line_index: >4} pixel count {ct_pixels} exceeds 15 bit maximum'
+        
              
         if line_length > 0x7F:
             line_length = line_length | 0x8000
@@ -414,40 +415,43 @@ class tgrFile:
         else:
             pfc = 'B'
         
-        offset = 0  # Will update once frame size calculations are implemented
-        
         return struct.pack('>'+lfc+'B'+pfc, line_length+header_length, offset, ct_pixels) + outbuf
         
         
-    def encodeLine(self, line_index=0):
+    def encodeLine(self, frame_index=0, line_index=0):
         if verbose:
             print(f"image size:{self.size}")
         pixel_ix = 0
-        trans_offset = 0
+        offset = 0      # Offset from edge of frame to first non-padding pixel
         ct_pixels = 0
         
         outbuf = b''
         
-        while pixel_ix < self.size[0]:
+        while pixel_ix < self.framesizes[frame_index][0]:
             
-            p = Pixel(*self.img_data[line_index*self.size[0] + pixel_ix])
+            p = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix])
             if verbose:
                 print(f'reading p:{p} at l:{line_index} c:{pixel_ix}')
             
             if p.alpha == 0:        # Encode transparent pixels
                 if verbose:
                     print(f'  chose flag 0b000')
-                flag = 0b000 << 5
-                run_length = self.look_ahead(p, line_index, pixel_ix) + 1
-                header = flag + (run_length & 0b11111)
-                outbuf += struct.pack('<B', header)
+                run_length = self.look_ahead(p, frame_index, line_index, pixel_ix) + 1
+                if pixel_ix == 0:   # If there are no preceding opaque pixels
+                    offset = run_length
+                else:
+                    flag = 0b000 << 5
+                    header = flag + (run_length & 0b11111)
+                    outbuf += struct.pack('<B', header)
+                    if verbose:
+                        print(f'  packing header {header:02X}')
                 pixel_ix += run_length
                 ct_pixels += run_length
                 if verbose:
-                    print(f'  packing header {header:02X}\n  advanced to c:{pixel_ix}')
+                    print(f'  advanced to c:{pixel_ix}')
                 
             elif p.alpha < 255:     #Encode translucent pixels                    
-                run_length = self.look_ahead(p, line_index, pixel_ix) + 1
+                run_length = self.look_ahead(p, frame_index, line_index, pixel_ix) + 1
                 (r,g,b,a) = p.to_int()
                 if run_length == 1:
                     if verbose:
@@ -473,7 +477,7 @@ class tgrFile:
                     print(f'  advanced to c:{pixel_ix}')
                 
             else:                   # Encode opaque pixels
-                matching = self.look_ahead(p, line_index, pixel_ix)
+                matching = self.look_ahead(p, frame_index, line_index, pixel_ix)
                 if matching:
                     if verbose:
                         print(f'  chose flag 0b001')
@@ -490,7 +494,7 @@ class tgrFile:
                 else:
                     if verbose:
                         print(f'  chose flag 0b010')
-                    run_length = self.look_ahead(p, line_index, pixel_ix, matching=False)
+                    run_length = self.look_ahead(p, frame_index, line_index, pixel_ix, matching=False)
                     if verbose:
                         print(f'  found {run_length} unique pixels')
                     flag = 0b010 << 5
@@ -499,7 +503,7 @@ class tgrFile:
                     if verbose:
                         print(f'  packing header {header:02X}')
                     for i in range(0,run_length):
-                        cur_pix = Pixel(*self.img_data[line_index*self.size[0] + pixel_ix + i])
+                        cur_pix = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + i])
                         (r,g,b,a) = cur_pix.to_int()
                         if verbose:
                             print(f'    p:{cur_pix} r:{r} g:{g} b:{b} a:{a}')
@@ -512,13 +516,13 @@ class tgrFile:
                 if verbose:
                         print(f'  advanced to c:{pixel_ix}')
                     
-        return self.encodeLineHeader(line_index, outbuf, ct_pixels)    
+        return self.encodeLineHeader(frame_index, line_index, outbuf, ct_pixels, offset=offset)    
         
     
     def encodeFrame(self, frame_index=0):
         outbuf = b''
-        for line_index in range(0,self.size[1]):
-            outbuf += self.encodeLine(line_index=line_index)
+        for line_index in range(0,self.framesizes[frame_index][1]):
+            outbuf += self.encodeLine(frame_index=frame_index,line_index=line_index)
         
         # pad frame to 4-byte boundary
         if len(outbuf) % 4 != 0:

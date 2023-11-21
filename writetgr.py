@@ -1,9 +1,13 @@
 import tgrlib
+from pathlib import Path
 
-imagefile = tgrlib.tgrFile('./ADELLON_MAJERE_PORTRAIT/fram_0.png', 'PNG')
+imagefile = tgrlib.tgrFile(Path('./GRENADIER'), 'PNG')
 imagefile.load()
 #imagefile.encodeLine(line_index=0)
-data = imagefile.encodeFrame(frame_index=0)
+data = b''
+for frame_index in range(0,len(imagefile.img_data)):
+    data += imagefile.encodeFrame(frame_index)
+#data = imagefile.encodeFrame(frame_index=306)
 with open('./outfile.tgr','wb') as fh_out:
     fh_out.write(data)
 
