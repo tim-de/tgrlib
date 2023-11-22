@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from PIL import Image
 
-verbose = True
+verbose = False
 crop_frames = True
 
 def read_line_length(in_fh: io.BufferedReader):
@@ -221,6 +221,7 @@ class tgrFile:
                     self.load_palette()
                 self.get_frames()
             case 'PNG':
+                self.bits_per_px = 16
                 self.img_data = []
                 self.size = self.imgs[0].size
                 for index, img in enumerate(self.imgs):
@@ -374,7 +375,8 @@ class tgrFile:
     def look_ahead(self, p: Pixel, frame_index, line_index, pixel_ix, matching=True):
         collected = 0
         if matching:
-            print(f'frame_index:{frame_index} (max:{len(self.img_data)}) pixel:{pixel_ix + collected + 1} (max:{self.framesizes[frame_index][0]}) total:{line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1} (max:{len(self.img_data[frame_index])}) size_data:{self.framesizes[frame_index]}')
+            if verbose:
+                print(f'frame_index:{frame_index} (max:{len(self.img_data)}) pixel:{pixel_ix + collected + 1} (max:{self.framesizes[frame_index][0]}) total:{line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1} (max:{len(self.img_data[frame_index])}) size_data:{self.framesizes[frame_index]}')
             while pixel_ix + collected + 1 < self.framesizes[frame_index][0] and p == Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1]):
                 collected += 1
                 if collected == 30:
@@ -384,15 +386,17 @@ class tgrFile:
             if pixel_ix == self.framesizes[frame_index][0] - 1:    # If last pixel in row:
                 return 1                        # Return 1 pixel, don't compare
             while pixel_ix + collected < self.framesizes[frame_index][0] and Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected]) != Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1]) and Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected]).alpha == 255:
-                print(f"    Look_Ahead: pixel {Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected])} at c:{pixel_ix + collected} doesn't match pixel {Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1])} at c:{pixel_ix + collected + 1}")
+                if verbose:
+                    print(f"    Look_Ahead: pixel {Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected])} at c:{pixel_ix + collected} doesn't match pixel {Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1])} at c:{pixel_ix + collected + 1}")
                 collected += 1
                 if collected == 31:
                     break
-            print(f'      Look_Ahead: collected {collected} individual pixels')
+            if verbose:
+                print(f'      Look_Ahead: collected {collected} individual pixels')
             return collected
     
     def encodeLineHeader(self, frame_index, line_index, outbuf, ct_pixels, offset=0):
-        print(outbuf)
+        #print(outbuf)
         line_length = len(outbuf)
         header_length = 3
         
@@ -522,6 +526,7 @@ class tgrFile:
     def encodeFrame(self, frame_index=0):
         outbuf = b''
         for line_index in range(0,self.framesizes[frame_index][1]):
+            self.frameoffsets.append(len(outbuf))
             outbuf += self.encodeLine(frame_index=frame_index,line_index=line_index)
         
         # pad frame to 4-byte boundary
@@ -529,6 +534,133 @@ class tgrFile:
             outbuf += b'\x00' * (4 - (len(outbuf) % 4))
         
         return struct.pack('>II', 0x4652414D, len(outbuf)) + outbuf
+    
+    def calcHotSpot(self):
+        if len(self.img_data) > 1:
+            x = int(self.framesizes[0][0] / 2 + self.framesizes[0][2])
+            y = int(self.framesizes[0][1])
+        else:
+            x = 0
+            y = 0
+        return (x,y)
+    
+    def calcBoundingBox(self):
+        # TODO
+        return (0,0,0,0)
+    
+    def calcPaletteOffset(self):
+        # TODO
+        return 0
+    
+    def packFrameSizes(self, anim_buf: bytes):
+        offset_to_fram = 12 + 8 + 40 + len(self.img_data)*12 + len(anim_buf) + 8
+        # FORM + HEDR header + HEDR body + expected frame sizes + animations + FRAM header
+        outbuf = b''
+        for s, o in zip(self.framesizes, self.frameoffsets):
+            outbuf += struct.pack('4HI',
+                                 s[2],
+                                 s[3],
+                                 s[4],
+                                 s[5],
+                                 o + offset_to_fram
+             )
+        if len(outbuf) != len(self.img_data)*12:
+            raise ValueError("Packed Frame Size {len(outbuf)} doesn't' matched expected size {len(self.img_data)*12}")
+        return outbuf
+    
+    def packAnimations(self):
+        #TODO
+        data = struct.pack('<20H',
+                           6,
+                           0,
+                           12,
+                           8,
+                           96,
+                           12,
+                           8,
+                           192,
+                           12,
+                           4,
+                           240,
+                           12,
+                           4,
+                           0,
+                           0,
+                           0,
+                           288,
+                           5,
+                           4,
+                           0
+                           )
+        print(data)
+        return data
+    
+    def encodeHeader(self, frame_buffer: bytes):
+        chunk_name = b'HEDR'
+        chunk_length = 0
+        version = 0x04
+        frame_count = len(self.img_data)
+        if self.bits_per_px == 8:
+            index_mode = 0x001A
+        else:
+            index_mode = 0
+        offset_flag = 0
+        size_x = self.size[0]
+        size_y = self.size[1]
+        (hs_x, hs_y) = self.calcHotSpot()
+        bb = self.calcBoundingBox()
+        palette_offset = self.calcPaletteOffset()
+        
+        animations = self.packAnimations()
+        frame_sizes = self.packFrameSizes(animations)
+        
+        out_text = (f'version:{type(version)}\n'+
+                    f'frame_count:{type(frame_count)}\n'+
+                    f'self.bits_per_px:{type(self.bits_per_px)}\n'+
+                    f'index_mode:{type(index_mode)}\n'+
+                    f'offset_flag:{type(offset_flag)}\n'+
+                    f'size_x:{type(self.size[0])}\n'+
+                    f'size_y:{type(self.size[1])}\n'+
+                    f'hs_x:{type(hs_x)}:{hs_x}\n'+
+                    f'hs_y:{type(hs_y)}:{hs_y}\n'+
+                    f'bb[0]:{type(bb[0])}\n'+
+                    f'bb[1]:{type(bb[1])}\n'+
+                    f'bb[2]:{type(bb[2])}\n'+
+                    f'bb[3]:{type(bb[3])}\n'+
+                    f'palette_offset:{type(palette_offset)}\n'
+                    )
+        print(out_text)
+        
+        hedr_buf = struct.pack('I12HQI',
+                               version,
+                               frame_count,
+                               self.bits_per_px,
+                               index_mode,
+                               offset_flag,
+                               size_x,
+                               size_y,
+                               hs_x,
+                               hs_y,
+                               bb[0],
+                               bb[1],
+                               bb[2],
+                               bb[3],
+                               0xFFFF,
+                               palette_offset)
+        print(f'frame_sizes:{frame_sizes}')
+        hedr_buf += frame_sizes + animations
+        chunk_length = len(hedr_buf)
+        print(f'chunk_name:{chunk_name}:{type(chunk_name)}\nchunk_length:{chunk_length}:{type(chunk_length)}')
+        return struct.pack('>4sI', chunk_name, chunk_length) + hedr_buf + frame_buffer
+        
+        
+        
+        
+    def encodeForm(self, file_buffer: bytes):
+        chunk_name = b'FORM'
+        length = len(file_buffer)
+        file_type = b'TGAR'
+        return struct.pack('>4sI4s', chunk_name, length, file_type) + file_buffer
         
         
         

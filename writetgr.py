@@ -7,7 +7,8 @@ imagefile.load()
 data = b''
 for frame_index in range(0,len(imagefile.img_data)):
     data += imagefile.encodeFrame(frame_index)
-#data = imagefile.encodeFrame(frame_index=306)
+data = imagefile.encodeHeader(data)
+data = imagefile.encodeForm(data)
 with open('./outfile.tgr','wb') as fh_out:
     fh_out.write(data)
 
