@@ -615,6 +615,7 @@ class tgrFile:
         
         animations = self.packAnimations()
         frame_sizes = self.packFrameSizes(animations)
+        print(frame_sizes[:16])
         
         out_text = (f'version:{type(version)}\n'+
                     f'frame_count:{type(frame_count)}\n'+
@@ -633,7 +634,7 @@ class tgrFile:
                     )
         print(out_text)
         
-        hedr_buf = struct.pack('I12HQI',
+        hedr_buf = struct.pack('I12HIII',
                                version,
                                frame_count,
                                self.bits_per_px,
@@ -647,9 +648,11 @@ class tgrFile:
                                bb[1],
                                bb[2],
                                bb[3],
-                               0xFFFF,
+                               0,
+                               0,
                                palette_offset)
         #print(f'frame_sizes:{frame_sizes}')
+        print(hedr_buf)
         hedr_buf += frame_sizes + animations
         chunk_length = len(hedr_buf)
         print(f'chunk_name:{chunk_name}:{type(chunk_name)}\nchunk_length:{chunk_length}:{type(chunk_length)}')
