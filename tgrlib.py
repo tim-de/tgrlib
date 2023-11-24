@@ -227,20 +227,19 @@ class tgrFile:
                 for index, img in enumerate(self.imgs):
                     if img.size != self.size:
                         raise ValueError(f"Frame:{index} size:{img.size} doesn't match Frame:0 size:{self.size}")
+                    # from https://stackoverflow.com/a/67677468
+                    img_array = np.array(img)
+                    # Find indices of non-transparent pixels (indices where alpha channel value is above zero).
+                    idx = np.where(img_array[:, :, 3] > 0)
+                    # Get minimum and maximum index in both axes (top left corner and bottom right corner)
+                    x0, y0, x1, y1 = idx[1].min(), idx[0].min(), idx[1].max(), idx[0].max()
+                    
                     if crop_frames:
-                        # from https://stackoverflow.com/a/67677468
-                        img = np.array(img)
-                        # Find indices of non-transparent pixels (indices where alpha channel value is above zero).
-                        idx = np.where(img[:, :, 3] > 0)
-
-                        # Get minimum and maximum index in both axes (top left corner and bottom right corner)
-                        x0, y0, x1, y1 = idx[1].min(), idx[0].min(), idx[1].max(), idx[0].max()
-
                         # Crop rectangle and convert to Image
-                        img = Image.fromarray(img[y0:y1+1, x0:x1+1, :])
+                        img = Image.fromarray(img_array[y0:y1+1, x0:x1+1, :])
                     
                     self.img_data.append(img.getdata())
-                    self.framesizes.append([x1-x0, y1-y0, x0, y0, x1, y1])
+                    self.framesizes.append([x1-x0+1, y1-y0+1, x0, y0, x1, y1])  # +1 includes both endpoints
                     
 
     def read_header(self):
@@ -375,7 +374,7 @@ class tgrFile:
     def look_ahead(self, p: Pixel, frame_index, line_index, pixel_ix, matching=True):
         collected = 0
         if matching:
-            if verbose:
+            if frame_index == 0:
                 print(f'frame_index:{frame_index} (max:{len(self.img_data)}) pixel:{pixel_ix + collected + 1} (max:{self.framesizes[frame_index][0]}) total:{line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1} (max:{len(self.img_data[frame_index])}) size_data:{self.framesizes[frame_index]}')
             while pixel_ix + collected + 1 < self.framesizes[frame_index][0] and p == Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1]):
                 collected += 1
@@ -386,7 +385,7 @@ class tgrFile:
             if pixel_ix == self.framesizes[frame_index][0] - 1:    # If last pixel in row:
                 return 1                        # Return 1 pixel, don't compare
             while pixel_ix + collected < self.framesizes[frame_index][0] and Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected]) != Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1]) and Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected]).alpha == 255:
-                if verbose:
+                if frame_index == 0:
                     print(f"    Look_Ahead: pixel {Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected])} at c:{pixel_ix + collected} doesn't match pixel {Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1])} at c:{pixel_ix + collected + 1}")
                 collected += 1
                 if collected == 31:
@@ -432,6 +431,8 @@ class tgrFile:
         outbuf = b''
         
         while pixel_ix < self.framesizes[frame_index][0]:
+            if frame_index == 0:
+                print(f'TOP OF LOOP: pixel_ix:{pixel_ix}')
             
             p = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix])
             if verbose:
@@ -443,6 +444,8 @@ class tgrFile:
                 run_length = self.look_ahead(p, frame_index, line_index, pixel_ix) + 1
                 if pixel_ix == 0:   # If there are no preceding opaque pixels
                     offset = run_length
+                    if frame_index == 0:
+                        print(f'f:{frame_index:>3} l:{line_index:>3} offset:{offset}')
                 else:
                     flag = 0b000 << 5
                     header = flag + (run_length & 0b11111)
@@ -526,7 +529,6 @@ class tgrFile:
     def encodeFrame(self, frame_index=0):
         outbuf = b''
         for line_index in range(0,self.framesizes[frame_index][1]):
-            self.frameoffsets.append(len(outbuf))
             outbuf += self.encodeLine(frame_index=frame_index,line_index=line_index)
         
         # pad frame to 4-byte boundary
@@ -592,7 +594,7 @@ class tgrFile:
                            4,
                            0
                            )
-        print(data)
+        #print(data)
         return data
     
     def encodeHeader(self, frame_buffer: bytes):
@@ -647,7 +649,7 @@ class tgrFile:
                                bb[3],
                                0xFFFF,
                                palette_offset)
-        print(f'frame_sizes:{frame_sizes}')
+        #print(f'frame_sizes:{frame_sizes}')
         hedr_buf += frame_sizes + animations
         chunk_length = len(hedr_buf)
         print(f'chunk_name:{chunk_name}:{type(chunk_name)}\nchunk_length:{chunk_length}:{type(chunk_length)}')

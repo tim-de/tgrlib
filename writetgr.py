@@ -6,6 +6,7 @@ imagefile.load()
 #imagefile.encodeLine(line_index=0)
 data = b''
 for frame_index in range(0,len(imagefile.img_data)):
+    imagefile.frameoffsets.append(len(data))
     data += imagefile.encodeFrame(frame_index)
 data = imagefile.encodeHeader(data)
 data = imagefile.encodeForm(data)
