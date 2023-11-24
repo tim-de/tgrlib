@@ -24,7 +24,7 @@ if __name__ == "__main__":
     
     player_color = args.color
 
-    imagefile = tgrlib.tgrFile(image_path, False)
+    imagefile = tgrlib.tgrFile(image_path, 'TGR', False)
 
     imagefile.load()
 
@@ -69,6 +69,6 @@ if __name__ == "__main__":
             fram_img.frombytes(imagedata)
             offset = imagefile.frameoffsets[frame_index][0]
             image.paste(fram_img, offset)
-        image.save(f"{image_name}/fram_{frame_index}.png")
+        image.save(f"{image_name}/fram_{frame_index:04d}.png")
 
         #image.save(f"{image_name}.png")

@@ -3,10 +3,15 @@
 import ifflib
 import struct
 import io
-#import sys
+import sys
 import typing
+import numpy as np
 from dataclasses import dataclass
 from pathlib import Path
+from PIL import Image
+
+verbose = False
+crop_frames = True
 
 def read_line_length(in_fh: io.BufferedReader):
     rawlen = in_fh.read(2)
@@ -52,6 +57,14 @@ class Pixel:
         red = round(((half_word >> 11) & 0b11111) / 31 * 255)
 
         return cls(red, green, blue)
+    
+    def to_int(self):
+        r5 = round(self.red / 255 * 31)
+        g6 = round(self.green / 255 * 63)
+        b5 = round(self.blue / 255 * 31)
+        a5 = round(self.alpha / 255 * 31)
+        
+        return (r5, g6, b5, a5)
 
     def pack_to_bin(self, format: str ="RGB") -> bytes:
         match format:
@@ -173,9 +186,24 @@ class tgrFile:
         # TODO: add methods for decoding a frame into either a list of bytes
         #       or a PIL image (but might be best to keep it light on dependencies)
                 
-    def __init__(self, filename: str, is_sprite=False):
+    def __init__(self, filename: str, read_from: str, is_sprite=False):
         self.filename = filename
-        self.iff = ifflib.iff_file(self.filename)
+        self.read_from = read_from
+        match self.read_from:
+            case 'TGR':
+                self.iff = ifflib.iff_file(self.filename)
+            case 'PNG':
+                self.imgs = []
+                if self.filename.is_file():
+                    self.imgs.append(Image.open(self.filename))
+                elif self.filename.is_dir():
+                    for f in Path(self.filename).glob('*.'+read_from):
+                        if f.is_file():
+                            print(f)
+                            self.imgs.append(Image.open(f))
+            case _:
+                print(f"Error: invalid read type {self.read_from}")
+                
         self.size: typing.Tuple[int, int] = (0,0)
         self.is_sprite = is_sprite
         self.framesizes = []
@@ -183,13 +211,36 @@ class tgrFile:
         self.frames = []
 
     def load(self):
-        self.iff.load()
-        if self.iff.data.formtype != "TGAR":
-            print(f"Error: invalid file type: {self.iff.data.formtype}")
-        self.read_header()
-        if self.indexed_colour:
-            self.load_palette()
-        self.get_frames()
+        match self.read_from:
+            case 'TGR':
+                self.iff.load()
+                if self.iff.data.formtype != "TGAR":
+                    print(f"Error: invalid file type: {self.iff.data.formtype}")
+                self.read_header()
+                if self.indexed_colour:
+                    self.load_palette()
+                self.get_frames()
+            case 'PNG':
+                self.bits_per_px = 16
+                self.img_data = []
+                self.size = self.imgs[0].size
+                for index, img in enumerate(self.imgs):
+                    if img.size != self.size:
+                        raise ValueError(f"Frame:{index} size:{img.size} doesn't match Frame:0 size:{self.size}")
+                    # from https://stackoverflow.com/a/67677468
+                    img_array = np.array(img)
+                    # Find indices of non-transparent pixels (indices where alpha channel value is above zero).
+                    idx = np.where(img_array[:, :, 3] > 0)
+                    # Get minimum and maximum index in both axes (top left corner and bottom right corner)
+                    x0, y0, x1, y1 = idx[1].min(), idx[0].min(), idx[1].max(), idx[0].max()
+                    
+                    if crop_frames:
+                        # Crop rectangle and convert to Image
+                        img = Image.fromarray(img_array[y0:y1+1, x0:x1+1, :])
+                    
+                    self.img_data.append(img.getdata())
+                    self.framesizes.append([x1-x0+1, y1-y0+1, x0, y0, x1, y1])  # +1 includes both endpoints
+                    
 
     def read_header(self):
         with open(self.filename, "rb") as in_fh:
@@ -318,6 +369,305 @@ class tgrFile:
         if len(outbuf) < line.pixel_length:
             print(f"Appending {line.pixel_length - len(outbuf)} pixels to line {line_index}")
             outbuf += [transparency for _ in range(line.pixel_length - len(outbuf))]
-        return outbuf 
+        return outbuf
+    
+    def look_ahead(self, p: Pixel, frame_index, line_index, pixel_ix, matching=True):
+        collected = 0
+        if matching:
+            if frame_index == 0:
+                print(f'frame_index:{frame_index} (max:{len(self.img_data)}) pixel:{pixel_ix + collected + 1} (max:{self.framesizes[frame_index][0]}) total:{line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1} (max:{len(self.img_data[frame_index])}) size_data:{self.framesizes[frame_index]}')
+            while pixel_ix + collected + 1 < self.framesizes[frame_index][0] and p == Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1]):
+                collected += 1
+                if collected == 30:
+                    break
+            return collected
+        else:
+            if pixel_ix == self.framesizes[frame_index][0] - 1:    # If last pixel in row:
+                return 1                        # Return 1 pixel, don't compare
+            while pixel_ix + collected < self.framesizes[frame_index][0] and Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected]) != Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1]) and Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected]).alpha == 255:
+                if frame_index == 0:
+                    print(f"    Look_Ahead: pixel {Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected])} at c:{pixel_ix + collected} doesn't match pixel {Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1])} at c:{pixel_ix + collected + 1}")
+                collected += 1
+                if collected == 31:
+                    break
+            if verbose:
+                print(f'      Look_Ahead: collected {collected} individual pixels')
+            return collected
+    
+    def encodeLineHeader(self, frame_index, line_index, outbuf, ct_pixels, offset=0):
+        #print(outbuf)
+        line_length = len(outbuf)
+        header_length = 3
+        
+        assert line_length <= 0x7FFA, f'f:{frame_index: >4} l:{line_index: >4} line length {line_length} exceeds 15 bit maximum'
+        assert offset <= 0xFF, f'f:{frame_index: >4} l:{line_index: >4} offset to first non-padding pixel exceeds 8 bit maximum'
+        assert ct_pixels <= 0x7FFF, f'f:{frame_index: >4} l:{line_index: >4} pixel count {ct_pixels} exceeds 15 bit maximum'
+        
+             
+        if line_length > 0x7F:
+            line_length = line_length | 0x8000
+            lfc = 'H'
+            header_length += 1
+        else:
+            lfc = 'B'
+        
+        if ct_pixels > 0x7F:
+            ct_pixels = ct_pixels | 0x8000
+            pfc = 'H'
+            header_length += 1
+        else:
+            pfc = 'B'
+        
+        return struct.pack('>'+lfc+'B'+pfc, line_length+header_length, offset, ct_pixels) + outbuf
+        
+        
+    def encodeLine(self, frame_index=0, line_index=0):
+        if verbose:
+            print(f"image size:{self.size}")
+        pixel_ix = 0
+        offset = 0      # Offset from edge of frame to first non-padding pixel
+        ct_pixels = 0
+        
+        outbuf = b''
+        
+        while pixel_ix < self.framesizes[frame_index][0]:
+            if frame_index == 0:
+                print(f'TOP OF LOOP: pixel_ix:{pixel_ix}')
+            
+            p = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix])
+            if verbose:
+                print(f'reading p:{p} at l:{line_index} c:{pixel_ix}')
+            
+            if p.alpha == 0:        # Encode transparent pixels
+                if verbose:
+                    print(f'  chose flag 0b000')
+                run_length = self.look_ahead(p, frame_index, line_index, pixel_ix) + 1
+                if pixel_ix == 0:   # If there are no preceding opaque pixels
+                    offset = run_length
+                    if frame_index == 0:
+                        print(f'f:{frame_index:>3} l:{line_index:>3} offset:{offset}')
+                else:
+                    flag = 0b000 << 5
+                    header = flag + (run_length & 0b11111)
+                    outbuf += struct.pack('<B', header)
+                    if verbose:
+                        print(f'  packing header {header:02X}')
+                pixel_ix += run_length
+                ct_pixels += run_length
+                if verbose:
+                    print(f'  advanced to c:{pixel_ix}')
+                
+            elif p.alpha < 255:     #Encode translucent pixels                    
+                run_length = self.look_ahead(p, frame_index, line_index, pixel_ix) + 1
+                (r,g,b,a) = p.to_int()
+                if run_length == 1:
+                    if verbose:
+                        print(f'  chose flag 0b100')
+                    flag = 0b100 << 5
+                    header = flag + (a & 0b11111)
+                    body = (r << 11) + (g << 5) + b
+                    if verbose:
+                        print(f"  packing header {header:02X} and body {body:04X}")
+                    outbuf += struct.pack('<BH', header, body)
+                else:
+                    if verbose:
+                        print(f'  chose flag 0b011')
+                    flag = 0b011 << 5
+                    header = flag + (run_length & 0b11111)
+                    body = (r << 11) + (g << 5) + b
+                    outbuf += struct.pack('<BBH', header, a, body)
+                    if verbose:
+                        print(f'  packing header {header:02X} alpha {a:02X} and body {body:04X}')
+                pixel_ix += run_length
+                ct_pixels += run_length
+                if verbose:
+                    print(f'  advanced to c:{pixel_ix}')
+                
+            else:                   # Encode opaque pixels
+                matching = self.look_ahead(p, frame_index, line_index, pixel_ix)
+                if matching:
+                    if verbose:
+                        print(f'  chose flag 0b001')
+                    flag = 0b001 << 5
+                    run_length = matching + 1
+                    header = flag + (run_length & 0b11111)
+                    (r,g,b,a) = p.to_int()
+                    body = (r << 11) + (g << 5) + b
+                    outbuf += struct.pack('<BH', header, body)
+                    pixel_ix += run_length
+                    ct_pixels += run_length
+                    if verbose:
+                        print(f'  packing header {header:02X} and body {body:04X}\n  advanced to c:{pixel_ix}')
+                else:
+                    if verbose:
+                        print(f'  chose flag 0b010')
+                    run_length = self.look_ahead(p, frame_index, line_index, pixel_ix, matching=False)
+                    if verbose:
+                        print(f'  found {run_length} unique pixels')
+                    flag = 0b010 << 5
+                    header = flag + (run_length & 0b11111)
+                    outbuf += struct.pack('<B', header)
+                    if verbose:
+                        print(f'  packing header {header:02X}')
+                    for i in range(0,run_length):
+                        cur_pix = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + i])
+                        (r,g,b,a) = cur_pix.to_int()
+                        if verbose:
+                            print(f'    p:{cur_pix} r:{r} g:{g} b:{b} a:{a}')
+                        body = (r << 11) + (g << 5) + b
+                        outbuf += struct.pack('<H', body)
+                        if verbose:
+                            print(f'    packing body:{body:04X}')
+                    pixel_ix += run_length
+                    ct_pixels += run_length
+                if verbose:
+                        print(f'  advanced to c:{pixel_ix}')
+                    
+        return self.encodeLineHeader(frame_index, line_index, outbuf, ct_pixels, offset=offset)    
+        
+    
+    def encodeFrame(self, frame_index=0):
+        outbuf = b''
+        for line_index in range(0,self.framesizes[frame_index][1]):
+            outbuf += self.encodeLine(frame_index=frame_index,line_index=line_index)
+        
+        # pad frame to 4-byte boundary
+        if len(outbuf) % 4 != 0:
+            outbuf += b'\x00' * (4 - (len(outbuf) % 4))
+        
+        return struct.pack('>II', 0x4652414D, len(outbuf)) + outbuf
+    
+    def calcHotSpot(self):
+        if len(self.img_data) > 1:
+            x = int(self.framesizes[0][0] / 2 + self.framesizes[0][2])
+            y = int(self.framesizes[0][1])
+        else:
+            x = 0
+            y = 0
+        return (x,y)
+    
+    def calcBoundingBox(self):
+        # TODO
+        return (0,0,0,0)
+    
+    def calcPaletteOffset(self):
+        # TODO
+        return 0
+    
+    def packFrameSizes(self, anim_buf: bytes):
+        offset_to_fram = 12 + 8 + 40 + len(self.img_data)*12 + len(anim_buf) + 8
+        # FORM + HEDR header + HEDR body + expected frame sizes + animations + FRAM header
+        outbuf = b''
+        for s, o in zip(self.framesizes, self.frameoffsets):
+            outbuf += struct.pack('4HI',
+                                 s[2],
+                                 s[3],
+                                 s[4],
+                                 s[5],
+                                 o + offset_to_fram
+             )
+        if len(outbuf) != len(self.img_data)*12:
+            raise ValueError("Packed Frame Size {len(outbuf)} doesn't' matched expected size {len(self.img_data)*12}")
+        return outbuf
+    
+    def packAnimations(self):
+        #TODO
+        data = struct.pack('<20H',
+                           6,
+                           0,
+                           12,
+                           8,
+                           96,
+                           12,
+                           8,
+                           192,
+                           12,
+                           4,
+                           240,
+                           12,
+                           4,
+                           0,
+                           0,
+                           0,
+                           288,
+                           5,
+                           4,
+                           0
+                           )
+        #print(data)
+        return data
+    
+    def encodeHeader(self, frame_buffer: bytes):
+        chunk_name = b'HEDR'
+        chunk_length = 0
+        version = 0x04
+        frame_count = len(self.img_data)
+        if self.bits_per_px == 8:
+            index_mode = 0x001A
+        else:
+            index_mode = 0
+        offset_flag = 0
+        size_x = self.size[0]
+        size_y = self.size[1]
+        (hs_x, hs_y) = self.calcHotSpot()
+        bb = self.calcBoundingBox()
+        palette_offset = self.calcPaletteOffset()
+        
+        animations = self.packAnimations()
+        frame_sizes = self.packFrameSizes(animations)
+        print(frame_sizes[:16])
+        
+        out_text = (f'version:{type(version)}\n'+
+                    f'frame_count:{type(frame_count)}\n'+
+                    f'self.bits_per_px:{type(self.bits_per_px)}\n'+
+                    f'index_mode:{type(index_mode)}\n'+
+                    f'offset_flag:{type(offset_flag)}\n'+
+                    f'size_x:{type(self.size[0])}\n'+
+                    f'size_y:{type(self.size[1])}\n'+
+                    f'hs_x:{type(hs_x)}:{hs_x}\n'+
+                    f'hs_y:{type(hs_y)}:{hs_y}\n'+
+                    f'bb[0]:{type(bb[0])}\n'+
+                    f'bb[1]:{type(bb[1])}\n'+
+                    f'bb[2]:{type(bb[2])}\n'+
+                    f'bb[3]:{type(bb[3])}\n'+
+                    f'palette_offset:{type(palette_offset)}\n'
+                    )
+        print(out_text)
+        
+        hedr_buf = struct.pack('I12HIII',
+                               version,
+                               frame_count,
+                               self.bits_per_px,
+                               index_mode,
+                               offset_flag,
+                               size_x,
+                               size_y,
+                               hs_x,
+                               hs_y,
+                               bb[0],
+                               bb[1],
+                               bb[2],
+                               bb[3],
+                               0,
+                               0,
+                               palette_offset)
+        #print(f'frame_sizes:{frame_sizes}')
+        print(hedr_buf)
+        hedr_buf += frame_sizes + animations
+        chunk_length = len(hedr_buf)
+        print(f'chunk_name:{chunk_name}:{type(chunk_name)}\nchunk_length:{chunk_length}:{type(chunk_length)}')
+        return struct.pack('>4sI', chunk_name, chunk_length) + hedr_buf + frame_buffer
+        
+        
+        
+        
+    def encodeForm(self, file_buffer: bytes):
+        chunk_name = b'FORM'
+        length = len(file_buffer)
+        file_type = b'TGAR'
+        return struct.pack('>4sI4s', chunk_name, length, file_type) + file_buffer
+        
+        
+        
 if __name__ == "__main__":
     pass
