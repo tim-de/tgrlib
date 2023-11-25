@@ -1,7 +1,9 @@
+#!/usr/bin/pypy3
+
 import tgrlib
 from pathlib import Path
 
-imagefile = tgrlib.tgrFile(Path('./GRENADIER'), 'PNG')
+imagefile = tgrlib.tgrFile('GRENADIER')
 imagefile.load()
 #imagefile.encodeLine(line_index=0)
 data = b''

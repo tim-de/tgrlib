@@ -3,7 +3,7 @@
 import ifflib
 import struct
 import io
-import sys
+#import sys
 import typing
 import numpy as np
 from dataclasses import dataclass
@@ -78,8 +78,8 @@ class Pixel:
 shadow = Pixel(0, 0, 0, 0x80)
 transparency = Pixel(0x00, 0xff, 0xff, 0x00)
 
-def load_player_colors(path: str = 'COLORS.INI'):
-    path = Path(path)
+def load_player_colors(filename: str = 'COLORS.INI'):
+    path = Path(filename)
     player_cols = {}
     if path.is_file():
         with open(path, "r") as fh:
@@ -183,24 +183,27 @@ class tgrFile:
     A class representing a .TGR game asset file,
     which as a format is based on the IFF file structure
     """
-        # TODO: add methods for decoding a frame into either a list of bytes
-        #       or a PIL image (but might be best to keep it light on dependencies)
-                
-    def __init__(self, filename: str, read_from: str, is_sprite=False):
-        self.filename = filename
-        self.read_from = read_from
+    def __init__(self, filename: str, is_sprite=False):
+        self.filename = Path(filename)
+        self.read_from = self.filename.suffix.upper()
+        #self.read_from = read_from
         match self.read_from:
-            case 'TGR':
+            case '.TGR':
                 self.iff = ifflib.iff_file(self.filename)
-            case 'PNG':
+            case '.PNG':
                 self.imgs = []
-                if self.filename.is_file():
-                    self.imgs.append(Image.open(self.filename))
-                elif self.filename.is_dir():
-                    for f in Path(self.filename).glob('*.'+read_from):
-                        if f.is_file():
+                self.imgs.append(Image.open(self.filename))
+            case '':
+                self.imgs = []
+                for f in self.filename.glob('*'):
+                    match f.suffix.upper():
+                        case ".PNG":
+                            self.read_from = ".PNG" if self.read_from == '' else self.read_from
                             print(f)
+                            # Maybe move opening the file into the load function
                             self.imgs.append(Image.open(f))
+                        case _:
+                            print(f"Error: invalid file type {f.suffix}")
             case _:
                 print(f"Error: invalid read type {self.read_from}")
                 
@@ -212,7 +215,7 @@ class tgrFile:
 
     def load(self):
         match self.read_from:
-            case 'TGR':
+            case '.TGR':
                 self.iff.load()
                 if self.iff.data.formtype != "TGAR":
                     print(f"Error: invalid file type: {self.iff.data.formtype}")
@@ -220,7 +223,7 @@ class tgrFile:
                 if self.indexed_colour:
                     self.load_palette()
                 self.get_frames()
-            case 'PNG':
+            case '.PNG':
                 self.bits_per_px = 16
                 self.img_data = []
                 self.size = self.imgs[0].size
@@ -376,7 +379,8 @@ class tgrFile:
         if matching:
             if frame_index == 0:
                 print(f'frame_index:{frame_index} (max:{len(self.img_data)}) pixel:{pixel_ix + collected + 1} (max:{self.framesizes[frame_index][0]}) total:{line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1} (max:{len(self.img_data[frame_index])}) size_data:{self.framesizes[frame_index]}')
-            while pixel_ix + collected + 1 < self.framesizes[frame_index][0] and p == Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1]):
+            while (pixel_ix + collected + 1 < self.framesizes[frame_index][0] and
+                   p == Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1])):
                 collected += 1
                 if collected == 30:
                     break
@@ -384,9 +388,15 @@ class tgrFile:
         else:
             if pixel_ix == self.framesizes[frame_index][0] - 1:    # If last pixel in row:
                 return 1                        # Return 1 pixel, don't compare
-            while pixel_ix + collected < self.framesizes[frame_index][0] and Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected]) != Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1]) and Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected]).alpha == 255:
+            while True:
+                if pixel_ix + collected >= self.framesizes[frame_index][0]:
+                    break
+                this_pixel = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected])
+                next_pixel = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1])
+                if this_pixel == next_pixel or this_pixel.alpha != 255:
+                    break
                 if frame_index == 0:
-                    print(f"    Look_Ahead: pixel {Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected])} at c:{pixel_ix + collected} doesn't match pixel {Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1])} at c:{pixel_ix + collected + 1}")
+                    print(f"\tLook_Ahead: pixel {this_pixel} at c:{pixel_ix + collected} doesn't match pixel {next_pixel} at c:{pixel_ix + collected + 1}")
                 collected += 1
                 if collected == 31:
                     break
@@ -658,16 +668,11 @@ class tgrFile:
         print(f'chunk_name:{chunk_name}:{type(chunk_name)}\nchunk_length:{chunk_length}:{type(chunk_length)}')
         return struct.pack('>4sI', chunk_name, chunk_length) + hedr_buf + frame_buffer
         
-        
-        
-        
     def encodeForm(self, file_buffer: bytes):
         chunk_name = b'FORM'
         length = len(file_buffer)
         file_type = b'TGAR'
         return struct.pack('>4sI4s', chunk_name, length, file_type) + file_buffer
-        
-        
         
 if __name__ == "__main__":
     pass
