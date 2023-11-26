@@ -1,0 +1,92 @@
+#!/usr/bin/pypy3
+
+import argparse
+import tgrlib
+from pathlib import Path
+from PIL import Image
+
+def unpack(args: argparse.Namespace):
+    image_path = args.source
+    player_color = args.color
+    imagefile = tgrlib.tgrFile(image_path, False)
+    imagefile.load()
+
+    if args.output != '':
+        image_name = args.output
+    else:
+        image_name = Path(image_path).stem
+    Path(image_name).mkdir(exist_ok=True)
+
+    frame_index = 0
+    pixel_format = "RGBA"
+    for frame_index, frame in enumerate(imagefile.frames):
+        if args.single_frame != -1 and args.single_frame != frame_index:
+            continue
+    #print(imagefile.framecount)
+    # frame = imagefile.frames[frame_index]
+
+        print(frame_index, frame.size)
+        imagedata = b""
+        with open(image_path, "rb") as in_fh:
+            for idx in range(len(frame.lines)):
+                rawline = imagefile.extractLine(in_fh, frame_index=frame_index, line_index=idx, increment=0, color=player_color)
+                #print(f"{idx+1:3d}: 0x{frame.lines[idx].offset:06x}, {len(rawline)}")
+                if len(rawline) < frame.size[0]:
+                    rawline += [tgrlib.transparency for _ in range(frame.size[0] - len(rawline))]
+                #while len(rawline) < frame.size[0]:
+                #    rawline.append(tgrlib.Pixel(0, 0, 0))
+                if len(rawline) > frame.size[0]:
+                    rawline = rawline[0:frame.size[0]]
+                imagedata += b"".join([elem.pack_to_bin(pixel_format) for elem in rawline])
+                #print(len(imagedata))
+        target_len = (frame.size[0] * frame.size[1]) * (3 if format == "RGB" else 4)
+        if len(imagedata) < target_len:
+            imagedata += bytes([0x00 for _ in range(target_len - len(imagedata))])
+        if args.no_align_frames:
+            image = Image.new(pixel_format, frame.size)
+            image.frombytes(imagedata)
+        else:
+            image = Image.new(pixel_format, imagefile.size)
+            fram_img = Image.new(pixel_format, frame.size)
+            fram_img.frombytes(imagedata)
+            offset = imagefile.frameoffsets[frame_index][0]
+            image.paste(fram_img, offset)
+        image.save(f"{image_name}/fram_{frame_index:04d}.png")
+
+def pack(args):
+    imagefile = tgrlib.tgrFile(args.source)
+    imagefile.load()
+    if args.output != '':
+        outfile = args.output
+    else:
+        outfile = imagefile.filename.stem + '.tgr'
+    data = b''
+    for frame_index in range(0,len(imagefile.img_data)):
+        imagefile.frameoffsets.append(len(data))
+        data += imagefile.encodeFrame(frame_index)
+    data = imagefile.encodeHeader(data)
+    data = imagefile.encodeForm(data)
+    with open(outfile ,'wb') as fh_out:
+        fh_out.write(data)
+
+## Define parsers
+main_parse = argparse.ArgumentParser(prog="tgxtool")
+
+sub_parsers = main_parse.add_subparsers(help="subparser help")
+unpack_parse = sub_parsers.add_parser("unpack")
+unpack_parse.set_defaults(func=unpack)
+unpack_parse.add_argument('-c', '--color', choices=range(1,9), default=2, type=int, help='Use the specified player color for extracted sprites. Defaults to 2 (blue)')
+unpack_parse.add_argument('-v', '--verbose', action='store_true', help='Enable debugging printouts')
+unpack_parse.add_argument('--no-align-frames', action='store_true', help='Disable frame alignment within image size')
+unpack_parse.add_argument('--single-frame', default=-1, type=int, help='Extract only the specified frame')
+
+pack_parse = sub_parsers.add_parser("pack")
+pack_parse.set_defaults(func=pack)
+
+main_parse.add_argument('source', type=str, help='path to target file or directory')
+main_parse.add_argument('--config', default='', type=str, help='Read from/write to specified config file')
+main_parse.add_argument('-o', '--output', default='', type=str, help='Destination for output file/directory')
+
+if __name__ == '__main__':
+    args = main_parse.parse_args()
+    args.func(args)

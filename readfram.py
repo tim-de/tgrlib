@@ -22,6 +22,7 @@ if __name__ == "__main__":
     player_color = args.color
 
     imagefile = tgrlib.tgrFile(image_path, False)
+
     imagefile.load()
 
     image_name = Path(image_path).stem
