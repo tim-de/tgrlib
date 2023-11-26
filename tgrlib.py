@@ -3,12 +3,14 @@
 import ifflib
 import struct
 import io
+import re
 #import sys
 import typing
 import numpy as np
 from dataclasses import dataclass
 from pathlib import Path
 from PIL import Image
+from configparser import ConfigParser
 
 verbose = False
 crop_frames = True
@@ -78,63 +80,27 @@ class Pixel:
 shadow = Pixel(0, 0, 0, 0x80)
 transparency = Pixel(0x00, 0xff, 0xff, 0x00)
 
-def load_player_colors(filename: str = 'COLORS.INI'):
-    path = Path(filename)
+def load_player_colors(filename: str = "COLORS.INI"):
+    c_file = ConfigParser()
+    c_file.read(filename)
     player_cols = {}
-    if path.is_file():
-        with open(path, "r") as fh:
-            last = fh.seek(0,2)
-            fh.seek(0)
-            while fh.tell() < last:
-                line = "".join(fh.readline().split())
-                if line.startswith('Color_'):
-                    color = int(line.split('_')[1])
-                    channels = [int(c) for c in line.split('=')[1].split(',')]
-                    
-                    if color in player_cols.keys():
-                        player_cols[color].append(Pixel(*channels))
-                    else:
-                        player_cols[color] = [Pixel(*channels)]
-    # Backup blue player colors if file doesn't load
-    else:
-        player_cols[2] = [
-        	Pixel(1,4,45),
-        	Pixel(1,4,45),
-        	Pixel(3,7,51),
-        	Pixel(4,11,59),
-        	Pixel(6,15,66),
-        	Pixel(7,19,74),
-        	Pixel(9,23,82),
-        	Pixel(10,26,90),
-        	Pixel(13,30,97),
-        	Pixel(14,34,103),
-        	Pixel(15,37,109),
-        	Pixel(17,40,114),
-        	Pixel(18,44,120),
-        	Pixel(20,48,126),
-        	Pixel(23,52,132),
-        	Pixel(26,57,139),
-        	Pixel(30,63,146),
-        	Pixel(34,69,153),
-        	Pixel(40,78,162),
-        	Pixel(48,89,171),
-        	Pixel(56,100,180),
-        	Pixel(65,111,189),
-        	Pixel(74,123,198),
-        	Pixel(83,134,206),
-        	Pixel(91,144,213),
-        	Pixel(98,154,219),
-        	Pixel(105,162,225),
-        	Pixel(111,170,231),
-        	Pixel(117,178,236),
-        	Pixel(123,185,241),
-        	Pixel(128,191,245),
-        	Pixel(132,197,249),
-        ]
+    c_name_re = re.compile(r"color_(\d{1,2})_shade_(\d{1,2})")
+    c_value_re = re.compile(r"\W*(\d{1,3}),(\d{1,3}),(\d{1,3})")
+    for color in c_file['PlayerColors']:
+        name_match = c_name_re.match(color)
+        value_match = c_value_re.match(c_file['PlayerColors'][color])
+        if name_match and value_match:
+            player_num = int(name_match.group(1))
+            shade_num = int(name_match.group(2))
+            color = value_match.group(1,2,3)
+            i_color = tuple(int(c) for c in color)
+            if player_num not in player_cols.keys():
+                player_cols[player_num] = {shade_num: Pixel(*i_color)}
+            else:
+                player_cols[player_num][shade_num] = Pixel(*i_color)
     return player_cols
 
 player_cols = load_player_colors()
-
 
 def packPixel(value=(0,0,0), alpha=False):
     if len(value) < 3:

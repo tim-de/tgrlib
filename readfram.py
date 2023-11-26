@@ -1,6 +1,5 @@
 #!/usr/bin/pypy3
 
-import sys
 import tgrlib
 import argparse
 from PIL import Image
@@ -11,21 +10,18 @@ if __name__ == "__main__":
                         prog='readfram.py',
                         description='Reads a .TGR asset file and extracts each image frame to a .PNG',
                         epilog='')
-    
     parser.add_argument('image_path')
     parser.add_argument('-c', '--color', choices=range(1,9), default=2, type=int, help='Use the specified player color for extracted sprites. Defaults to 2 (blue)')
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable debugging printouts')
     parser.add_argument('--no-align-frames', action='store_true', help='Disable frame alignment within image size')
     parser.add_argument('--single-frame', default=-1, type=int, help='Extract only the specified frame')
-    
     args = parser.parse_args()
     
     image_path = args.image_path
     
     player_color = args.color
 
-    imagefile = tgrlib.tgrFile(image_path, 'TGR', False)
-
+    imagefile = tgrlib.tgrFile(image_path, False)
     imagefile.load()
 
     image_name = Path(image_path).stem
