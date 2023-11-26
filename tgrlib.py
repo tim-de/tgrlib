@@ -8,12 +8,14 @@ import re
 import typing
 import numpy as np
 from dataclasses import dataclass
+import re
 from pathlib import Path
 from PIL import Image
 from configparser import ConfigParser
 
 verbose = False
 crop_frames = True
+frame_number_re = re.compile(r"fram_(\d{1,4})")
 
 def read_line_length(in_fh: io.BufferedReader):
     rawlen = in_fh.read(2)
@@ -158,16 +160,23 @@ class tgrFile:
                 self.iff = ifflib.iff_file(self.filename)
             case '.PNG':
                 self.imgs = []
-                self.imgs.append(Image.open(self.filename))
+                self.imgs[0]=Image.open(self.filename)
             case '':
-                self.imgs = []
-                for f in self.filename.glob('*'):
+                filelist = list(self.filename.glob('*'))
+                self.imgs = [None for _ in range(len(filelist))]
+                for f in filelist:
                     match f.suffix.upper():
                         case ".PNG":
                             self.read_from = ".PNG" if self.read_from == '' else self.read_from
-                            print(f)
+                            m = frame_number_re.match(str(f.stem))
+                            if m:
+                                fram_number = int(m.group(1))
+                            else:
+                                print(f"Failed to find fram number from {f.stem}")
+                                exit(1)
+                            print(f, fram_number)
                             # Maybe move opening the file into the load function
-                            self.imgs.append(Image.open(f))
+                            self.imgs[fram_number] = Image.open(f)
                         case _:
                             print(f"Error: invalid file type {f.suffix}")
             case _:
@@ -191,7 +200,7 @@ class tgrFile:
                 self.get_frames()
             case '.PNG':
                 self.bits_per_px = 16
-                self.img_data = []
+                self.img_data = [[] for _ in range(len(self.imgs))]
                 self.size = self.imgs[0].size
                 for index, img in enumerate(self.imgs):
                     if img.size != self.size:
@@ -207,7 +216,7 @@ class tgrFile:
                         # Crop rectangle and convert to Image
                         img = Image.fromarray(img_array[y0:y1+1, x0:x1+1, :])
                     
-                    self.img_data.append(img.getdata())
+                    self.img_data[index] = img.getdata()
                     self.framesizes.append([x1-x0+1, y1-y0+1, x0, y0, x1, y1])  # +1 includes both endpoints
                     
 
@@ -422,6 +431,8 @@ class tgrFile:
                     offset = run_length
                     if frame_index == 0:
                         print(f'f:{frame_index:>3} l:{line_index:>3} offset:{offset}')
+                elif pixel_ix + run_length >= self.framesizes[frame_index][0]:
+                    break
                 else:
                     flag = 0b000 << 5
                     header = flag + (run_length & 0b11111)
