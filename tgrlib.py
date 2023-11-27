@@ -12,6 +12,7 @@ import re
 from pathlib import Path
 from PIL import Image
 from configparser import ConfigParser
+from collections import OrderedDict
 
 verbose = False
 crop_frames = True
@@ -358,40 +359,87 @@ class tgrFile:
         return outbuf
     
     def write_config(self):
-        with open(f'{self.filename.stem}/sprite.cfg', 'w') as c_fh:
-            c_fh.write((f'; This file contains metadata for the extracted sprite {self.filename.stem+self.filename.suffix}\n'+
-                        f'; This allows the sprite to be repacked into a .TGR\n\n'))
-            
-            c_fh.write((f'; BitDepth is the number of bits used to encode each pixel color.\n'+
-                        f'; This will be 16 if the sprite uses direct color and 8 if it uses a color palette\n'+
-                        f'BitDepth = {self.bits_per_px}\n\n'))
-            
-            c_fh.write((f'; HotSpot is the position the sprite is dispalyed at in-game relative to the game object\n'+
-                        f'HotSpotX = {self.hotspot[0]}\n'+
-                        f'HotSpotY = {self.hotspot[1]}\n\n'))
-            
-            c_fh.write((f'; BoundingBox is the clickable region of the sprite\n'+
-                       f'BoundingBoxXMin = {self.bounding_box[0]}\n'+
-                       f'BoundingBoxYMin = {self.bounding_box[1]}\n'+
-                       f'BoundingBoxXMax = {self.bounding_box[2]}\n'+
-                       f'BoundingBoxYMax = {self.bounding_box[3]}\n\n'))
-            
-            c_fh.write(('; Sprites can have up to six animations, each consisting of a Start Frame, Frame Count, and Frame Rate\n'+
-                        '; Start Frame is the first frame of the West-facing version of the animation. Subsequent versions are in counterclockwise order\n'+
-                        '; Frame Count is the number of frames in each version of the animation\n'+
-                        '; Frame rate is how long each frame is displayed in hundredths of a second\n'+
-                        '; Animation0 is Walk for units and projectiles, and is the default animation for buildings\n'+
-                        '; Animation1 is Attack0 for units\n'+
-                        '; Animation2 is Die for units and projectiles\n'+
-                        '; Animation3 is Idle for units\n'+
-                        '; Animation4 is Attack1 for units\n'+
-                        '; Animation5 is Rot for units\n\n'))
-            
-            for i in range(self.anim_count):
-                c_fh.write((f'Animation{i}StartFrame = {self.animations[i][0]}\n'+
-                           f'Animation{i}FrameCount = {self.animations[i][1]}\n'+
-                           f'Animation{i}FrameRate = {self.animations[i][2]}\n\n'))
-            
+        config = ConfigParser(dict_type=OrderedDict, allow_no_value=True)
+        config.optionxform = str
+        config.add_section('Description')
+        config.set('Description', (f'; This file contains metadata for the extracted sprite {self.filename.stem+self.filename.suffix}\n'+
+                                   '; This allows the sprite to be repacked into a .TGR'))
+
+        config.add_section('BitDepth')
+        config.set('BitDepth', ('; BitDepth is the number of bits used to encode each pixel color.\n'+
+                                '; This will be 16 if the sprite uses direct color and 8 if it uses a color palette'))
+        config.set('BitDepth', 'Depth', str(self.bits_per_px))
+        
+        config.add_section('HotSpot')
+        config.set('HotSpot', '; HotSpot is the position the sprite is dispalyed at in-game relative to the game object')
+        config.set('HotSpot', 'X', str(self.hotspot[0]))
+        config.set('HotSpot', 'Y', str(self.hotspot[1]))
+        
+        config.add_section('BoundingBox')
+        config.set('BoundingBox', '; BoundingBox is the clickable region of the sprite')
+        config.set('BoundingBox', 'XMin', str(self.bounding_box[0]))
+        config.set('BoundingBox', 'YMin', str(self.bounding_box[1]))
+        config.set('BoundingBox', 'XMax', str(self.bounding_box[2]))
+        config.set('BoundingBox', 'YMax', str(self.bounding_box[3]))
+        
+        config.add_section('Animations')
+        config.set('Animations', ('; Sprites can have up to six animations, each consisting of a Start Frame, Frame Count, and Frame Rate\n'+
+                                  '; Start Frame is the first frame of the West-facing version of the animation. Subsequent versions are in counterclockwise order\n'+
+                                  '; Frame Count is the number of frames in each version of the animation\n'+
+                                  '; Frame rate is how long each frame is displayed in hundredths of a second\n'+
+                                  '; Animation0 is Walk for units and projectiles, and is the default animation for buildings\n'+
+                                  '; Animation1 is Attack0 for units\n'+
+                                  '; Animation2 is Die for units and projectiles\n'+
+                                  '; Animation3 is Idle for units\n'+
+                                  '; Animation4 is Attack1 for units\n'+
+                                  '; Animation5 is Rot for units\n'))
+        
+        for i in range(self.anim_count):
+            config.add_section(f'Animation{i}')
+            config.set(f'Animation{i}', 'StartFrame', str(self.animations[i][0]))
+            config.set(f'Animation{i}', 'FrameCount', str(self.animations[i][1]))
+            config.set(f'Animation{i}', 'FrameRate', str(self.animations[i][2]))
+        
+        with open(f'{self.filename.stem}/sprite.ini', 'w') as c_fh:
+            config.write(c_fh)
+        
+        
+# =============================================================================
+#         with open(f'{self.filename.stem}/sprite.cfg', 'w') as c_fh:
+#             c_fh.write((f'; This file contains metadata for the extracted sprite {self.filename.stem+self.filename.suffix}\n'+
+#                         f'; This allows the sprite to be repacked into a .TGR\n\n'))
+#             
+#             c_fh.write((f'; BitDepth is the number of bits used to encode each pixel color.\n'+
+#                         f'; This will be 16 if the sprite uses direct color and 8 if it uses a color palette\n'+
+#                         f'BitDepth = {self.bits_per_px}\n\n'))
+#             
+#             c_fh.write((f'; HotSpot is the position the sprite is dispalyed at in-game relative to the game object\n'+
+#                         f'HotSpotX = {self.hotspot[0]}\n'+
+#                         f'HotSpotY = {self.hotspot[1]}\n\n'))
+#             
+#             c_fh.write((f'; BoundingBox is the clickable region of the sprite\n'+
+#                        f'BoundingBoxXMin = {self.bounding_box[0]}\n'+
+#                        f'BoundingBoxYMin = {self.bounding_box[1]}\n'+
+#                        f'BoundingBoxXMax = {self.bounding_box[2]}\n'+
+#                        f'BoundingBoxYMax = {self.bounding_box[3]}\n\n'))
+#             
+#             c_fh.write(('; Sprites can have up to six animations, each consisting of a Start Frame, Frame Count, and Frame Rate\n'+
+#                         '; Start Frame is the first frame of the West-facing version of the animation. Subsequent versions are in counterclockwise order\n'+
+#                         '; Frame Count is the number of frames in each version of the animation\n'+
+#                         '; Frame rate is how long each frame is displayed in hundredths of a second\n'+
+#                         '; Animation0 is Walk for units and projectiles, and is the default animation for buildings\n'+
+#                         '; Animation1 is Attack0 for units\n'+
+#                         '; Animation2 is Die for units and projectiles\n'+
+#                         '; Animation3 is Idle for units\n'+
+#                         '; Animation4 is Attack1 for units\n'+
+#                         '; Animation5 is Rot for units\n\n'))
+#             
+#             for i in range(self.anim_count):
+#                 c_fh.write((f'Animation{i}StartFrame = {self.animations[i][0]}\n'+
+#                            f'Animation{i}FrameCount = {self.animations[i][1]}\n'+
+#                            f'Animation{i}FrameRate = {self.animations[i][2]}\n\n'))
+#             
+# =============================================================================
             #c_fh.write()
             
     def look_ahead(self, p: Pixel, frame_index, line_index, pixel_ix, matching=True):
