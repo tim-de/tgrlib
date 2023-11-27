@@ -12,6 +12,7 @@ import re
 from pathlib import Path
 from PIL import Image
 from configparser import ConfigParser
+from collections import OrderedDict
 
 verbose = False
 crop_frames = True
@@ -177,8 +178,13 @@ class tgrFile:
                             print(f, fram_number)
                             # Maybe move opening the file into the load function
                             self.imgs[fram_number] = Image.open(f)
+                        case '.INI':
+                            print(f'Skipping {f.stem + f.suffix}')
+                            # Shortens list to prevent crashes when reading a NoneType object
+                            del self.imgs[-1]
                         case _:
                             print(f"Error: invalid file type {f.suffix}")
+                            del self.imgs[-1]
             case _:
                 print(f"Error: invalid read type {self.read_from}")
                 
@@ -199,7 +205,7 @@ class tgrFile:
                     self.load_palette()
                 self.get_frames()
             case '.PNG':
-                self.bits_per_px = 16
+                self.read_config()
                 self.img_data = [[] for _ in range(len(self.imgs))]
                 self.size = self.imgs[0].size
                 for index, img in enumerate(self.imgs):
@@ -234,7 +240,8 @@ class tgrFile:
             
             #print(self.offset_flag)
             self.indexed_colour = index_mode & 0x7f == 0x1a
-            in_fh.seek(20, 1)
+            self.bounding_box = [*struct.unpack('HHHH',in_fh.read(8))]
+            in_fh.seek(12, 1)
             #if self.indexed_colour:
             #    in_fh.seek(12, 1)
             for _ in range(self.framecount):
@@ -243,6 +250,13 @@ class tgrFile:
                 #self.framesizes.append(struct.unpack("HH", in_fh.read(4)))
                 self.framesizes.append((1+lrx-ulx, 1+lry-uly, offset))
                 self.frameoffsets.append(((ulx, uly), (lrx, lry)))
+            
+            self.anim_count = struct.unpack('H',in_fh.read(2))[0]
+            self.animations = []
+            for _ in range(self.anim_count):
+                #(start_frame, frame_count, frame_rate) = struct.unpack('HHH', in_fh.read(6))
+                self.animations.append([*struct.unpack('HHH', in_fh.read(6))])
+                
         #print(len(self.framesizes))
 
     def load_palette(self):
@@ -349,6 +363,75 @@ class tgrFile:
             outbuf += [transparency for _ in range(line.pixel_length - len(outbuf))]
         return outbuf
     
+    def read_config(self):
+        config = ConfigParser()
+        config.read(self.filename / 'sprite.ini')
+        self.bits_per_px = int(config['BitDepth']['Depth'])
+        self.hotspot = (int(config['HotSpot']['X']), int(config['HotSpot']['Y']))
+        self.bounding_box = (int(config['BoundingBox']['XMin']), int(config['BoundingBox']['YMin']), int(config['BoundingBox']['XMax']), int(config['BoundingBox']['YMax']))
+        
+        self.animations = [(0, 0, 0, 0) for _ in range(6)]
+        self.anim_count = 0
+        anim_number_re = re.compile(r"Animation(\d{1,1})")
+        
+        for k, v in config.items():
+            m = anim_number_re.match(k)
+            if m:
+                anim_number = int(m.group(1))
+                if anim_number > self.anim_count:
+                    self.anim_count = anim_number + 1
+                self.animations[anim_number] = (int(config[f'Animation{anim_number}']['StartFrame']), int(config[f'Animation{anim_number}']['FrameCount']), int(config[f'Animation{anim_number}']['FrameRate']))
+        
+        self.animations = self.animations[:self.anim_count]
+        print(self.anim_count, self.animations)
+            
+        
+    
+    def write_config(self):
+        config = ConfigParser(dict_type=OrderedDict, allow_no_value=True)
+        config.optionxform = str
+        config.add_section('Description')
+        config.set('Description', (f'; This file contains metadata for the extracted sprite {self.filename.stem+self.filename.suffix}\n'+
+                                   '; This allows the sprite to be repacked into a .TGR'))
+
+        config.add_section('BitDepth')
+        config.set('BitDepth', ('; BitDepth is the number of bits used to encode each pixel color.\n'+
+                                '; This will be 16 if the sprite uses direct color and 8 if it uses a color palette'))
+        config.set('BitDepth', 'Depth', str(self.bits_per_px))
+        
+        config.add_section('HotSpot')
+        config.set('HotSpot', '; HotSpot is the position the sprite is dispalyed at in-game relative to the game object')
+        config.set('HotSpot', 'X', str(self.hotspot[0]))
+        config.set('HotSpot', 'Y', str(self.hotspot[1]))
+        
+        config.add_section('BoundingBox')
+        config.set('BoundingBox', '; BoundingBox is the clickable region of the sprite')
+        config.set('BoundingBox', 'XMin', str(self.bounding_box[0]))
+        config.set('BoundingBox', 'YMin', str(self.bounding_box[1]))
+        config.set('BoundingBox', 'XMax', str(self.bounding_box[2]))
+        config.set('BoundingBox', 'YMax', str(self.bounding_box[3]))
+        
+        config.add_section('Animations')
+        config.set('Animations', ('; Sprites can have up to six animations, each consisting of a Start Frame, Frame Count, and Frame Rate\n'+
+                                  '; Start Frame is the first frame of the West-facing version of the animation. Subsequent versions are in counterclockwise order\n'+
+                                  '; Frame Count is the number of frames in each version of the animation\n'+
+                                  '; Frame rate is how long each frame is displayed in hundredths of a second\n'+
+                                  '; Animation0 is Walk for units and projectiles, and is the default animation for buildings\n'+
+                                  '; Animation1 is Attack0 for units\n'+
+                                  '; Animation2 is Die for units and projectiles\n'+
+                                  '; Animation3 is Idle for units\n'+
+                                  '; Animation4 is Attack1 for units\n'+
+                                  '; Animation5 is Rot for units and projectiles'))
+        
+        for i in range(self.anim_count):
+            config.add_section(f'Animation{i}')
+            config.set(f'Animation{i}', 'StartFrame', str(self.animations[i][0]))
+            config.set(f'Animation{i}', 'FrameCount', str(self.animations[i][1]))
+            config.set(f'Animation{i}', 'FrameRate', str(self.animations[i][2]))
+        
+        with open(f'{self.filename.stem}/sprite.ini', 'w') as c_fh:
+            config.write(c_fh)
+
     def look_ahead(self, p: Pixel, frame_index, line_index, pixel_ix, matching=True):
         collected = 0
         if matching:
@@ -525,6 +608,8 @@ class tgrFile:
         return struct.pack('>II', 0x4652414D, len(outbuf)) + outbuf
     
     def calcHotSpot(self):
+        if self.hotspot != (0,0):
+            return self.hotspot
         if len(self.img_data) > 1:
             x = int(self.framesizes[0][0] / 2 + self.framesizes[0][2])
             y = int(self.framesizes[0][1])
@@ -532,10 +617,6 @@ class tgrFile:
             x = 0
             y = 0
         return (x,y)
-    
-    def calcBoundingBox(self):
-        # TODO
-        return (0,0,0,0)
     
     def calcPaletteOffset(self):
         # TODO
@@ -597,7 +678,6 @@ class tgrFile:
         size_x = self.size[0]
         size_y = self.size[1]
         (hs_x, hs_y) = self.calcHotSpot()
-        bb = self.calcBoundingBox()
         palette_offset = self.calcPaletteOffset()
         
         animations = self.packAnimations()
@@ -613,13 +693,13 @@ class tgrFile:
                     f'size_y:{type(self.size[1])}\n'+
                     f'hs_x:{type(hs_x)}:{hs_x}\n'+
                     f'hs_y:{type(hs_y)}:{hs_y}\n'+
-                    f'bb[0]:{type(bb[0])}\n'+
-                    f'bb[1]:{type(bb[1])}\n'+
-                    f'bb[2]:{type(bb[2])}\n'+
-                    f'bb[3]:{type(bb[3])}\n'+
+                    f'self.bounding_box[0]:{type(self.bounding_box[0])}\n'+
+                    f'self.bounding_box[1]:{type(self.bounding_box[1])}\n'+
+                    f'self.bounding_box[2]:{type(self.bounding_box[2])}\n'+
+                    f'self.bounding_box[3]:{type(self.bounding_box[3])}\n'+
                     f'palette_offset:{type(palette_offset)}\n'
                     )
-        print(out_text)
+        #print(out_text)
         
         hedr_buf = struct.pack('I12HIII',
                                version,
@@ -631,10 +711,10 @@ class tgrFile:
                                size_y,
                                hs_x,
                                hs_y,
-                               bb[0],
-                               bb[1],
-                               bb[2],
-                               bb[3],
+                               self.bounding_box[0],
+                               self.bounding_box[1],
+                               self.bounding_box[2],
+                               self.bounding_box[3],
                                0,
                                0,
                                palette_offset)
