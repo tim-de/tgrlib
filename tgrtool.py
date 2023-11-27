@@ -1,4 +1,4 @@
-#!/usr/bin/pypy3
+#!/usr/bin/python
 
 import argparse
 import tgrlib
@@ -72,20 +72,23 @@ def pack(args):
 ## Define parsers
 main_parse = argparse.ArgumentParser(prog="tgxtool")
 
-sub_parsers = main_parse.add_subparsers(help="subparser help")
+sub_parsers = main_parse.add_subparsers(help="available commands")
+
 unpack_parse = sub_parsers.add_parser("unpack")
 unpack_parse.set_defaults(func=unpack)
-unpack_parse.add_argument('-c', '--color', choices=range(1,9), default=2, type=int, help='Use the specified player color for extracted sprites. Defaults to 2 (blue)')
-unpack_parse.add_argument('-v', '--verbose', action='store_true', help='Enable debugging printouts')
-unpack_parse.add_argument('--no-align-frames', action='store_true', help='Disable frame alignment within image size')
-unpack_parse.add_argument('--single-frame', default=-1, type=int, help='Extract only the specified frame')
+unpack_parse.add_argument('-c', '--color', choices=range(1,9), default=2, type=int, help='use the specified player color for extracted sprites. Defaults to 2 (blue)')
+unpack_parse.add_argument('-v', '--verbose', action='store_true', help='enable debugging printouts')
+unpack_parse.add_argument('--no-align-frames', action='store_true', help='disable frame alignment within image size')
+unpack_parse.add_argument('--single-frame', default=-1, type=int, help='extract only the specified frame')
+unpack_parse.add_argument('-o', '--output', default='', type=str, help='destination directory for unpacked files')
+unpack_parse.add_argument('--config', type=str, help='write to specified config file')
+unpack_parse.add_argument('source', type=str, help='path to target tgr file')
 
 pack_parse = sub_parsers.add_parser("pack")
 pack_parse.set_defaults(func=pack)
-
-main_parse.add_argument('source', type=str, help='path to target file or directory')
-main_parse.add_argument('--config', default='', type=str, help='Read from/write to specified config file')
-main_parse.add_argument('-o', '--output', default='', type=str, help='Destination for output file/directory')
+pack_parse.add_argument('-o', '--output', type=str, help='destination file for packed data')
+pack_parse.add_argument('source', type=str, help='path to file or directory to unpack')
+pack_parse.add_argument('--config', default='', type=str, help='read from specified config file')
 
 if __name__ == '__main__':
     args = main_parse.parse_args()
