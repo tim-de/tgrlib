@@ -1,4 +1,4 @@
-#!/usr/bin/pypy3
+#!/usr/bin/python
 
 import ifflib
 import struct
