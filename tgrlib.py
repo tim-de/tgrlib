@@ -421,7 +421,7 @@ class tgrFile:
                                   '; Animation2 is Die for units and projectiles\n'+
                                   '; Animation3 is Idle for units\n'+
                                   '; Animation4 is Attack1 for units\n'+
-                                  '; Animation5 is Rot for units\n'))
+                                  '; Animation5 is Rot for units and projectiles'))
         
         for i in range(self.anim_count):
             config.add_section(f'Animation{i}')
@@ -608,6 +608,8 @@ class tgrFile:
         return struct.pack('>II', 0x4652414D, len(outbuf)) + outbuf
     
     def calcHotSpot(self):
+        if self.hotspot != (0,0):
+            return self.hotspot
         if len(self.img_data) > 1:
             x = int(self.framesizes[0][0] / 2 + self.framesizes[0][2])
             y = int(self.framesizes[0][1])
@@ -615,10 +617,6 @@ class tgrFile:
             x = 0
             y = 0
         return (x,y)
-    
-    def calcBoundingBox(self):
-        # TODO
-        return (0,0,0,0)
     
     def calcPaletteOffset(self):
         # TODO
@@ -680,7 +678,6 @@ class tgrFile:
         size_x = self.size[0]
         size_y = self.size[1]
         (hs_x, hs_y) = self.calcHotSpot()
-        bb = self.calcBoundingBox()
         palette_offset = self.calcPaletteOffset()
         
         animations = self.packAnimations()
@@ -696,13 +693,13 @@ class tgrFile:
                     f'size_y:{type(self.size[1])}\n'+
                     f'hs_x:{type(hs_x)}:{hs_x}\n'+
                     f'hs_y:{type(hs_y)}:{hs_y}\n'+
-                    f'bb[0]:{type(bb[0])}\n'+
-                    f'bb[1]:{type(bb[1])}\n'+
-                    f'bb[2]:{type(bb[2])}\n'+
-                    f'bb[3]:{type(bb[3])}\n'+
+                    f'self.bounding_box[0]:{type(self.bounding_box[0])}\n'+
+                    f'self.bounding_box[1]:{type(self.bounding_box[1])}\n'+
+                    f'self.bounding_box[2]:{type(self.bounding_box[2])}\n'+
+                    f'self.bounding_box[3]:{type(self.bounding_box[3])}\n'+
                     f'palette_offset:{type(palette_offset)}\n'
                     )
-        print(out_text)
+        #print(out_text)
         
         hedr_buf = struct.pack('I12HIII',
                                version,
@@ -714,10 +711,10 @@ class tgrFile:
                                size_y,
                                hs_x,
                                hs_y,
-                               bb[0],
-                               bb[1],
-                               bb[2],
-                               bb[3],
+                               self.bounding_box[0],
+                               self.bounding_box[1],
+                               self.bounding_box[2],
+                               self.bounding_box[3],
                                0,
                                0,
                                palette_offset)
