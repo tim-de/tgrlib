@@ -19,7 +19,7 @@ def unpack(args: argparse.Namespace):
         image_name = Path(image_path).stem
     print(args.output)
     print(image_name)
-    Path(image_name).mkdir(exist_ok=True)
+    Path(image_name).mkdir(exist_ok=True, parents=True)
 
     frame_index = 0
     pixel_format = "RGBA"
