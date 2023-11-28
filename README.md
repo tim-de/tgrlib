@@ -188,7 +188,7 @@ relation to the number of pixels being encoded, although this is not yet clear.
 | 0b100 | A single pixel with transparency defined by run_length and color defined by the next (bit_depth / 8 ) bytes | 0x8F E0 07 = a green pixel with 50% transparency |
 | 0b101 | A run_length series of 'shadow' pixels | 0xB1 = 17 'shadow' pixels |
 | 0b110 | A single player-color pixel, with color index defined by run_length | 0xC8 = a pixel with the 8th color in the player color list |
-| 0b111 | A run_length series of player-color pixels, with each color index packed in 4 bits. Any remaining bits are padded with 0s to the nearest byte. This operation is used to calculate the color index: ```(4_bit_value << 1) | 1``` | 0xE3 79 A0 = three pixels with the 15th, 18th, and 20th player colors, respectively |
+| 0b111 | A run_length series of player-color pixels, with each color index packed in 4 bits. Any remaining bits are padded with 0s to the nearest byte. This operation is used to calculate the color index: ```(4_bit_value << 1) \| 1``` | 0xE3 79 A0 = three pixels with the 15th, 18th, and 20th player colors, respectively |
 
 
 ### Colour format
