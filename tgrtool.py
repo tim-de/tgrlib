@@ -60,7 +60,7 @@ def unpack(args: argparse.Namespace):
 
 def pack(args: argparse.Namespace):
     imagefile = tgrlib.tgrFile(args.source)
-    config_path = args.config if args.config else f"{args.source}/sprite.tgr"
+    config_path = args.config if args.config else f"{args.source}/sprite.ini"
     imagefile.load(config_path)
     if args.output != '' and args.output != None:
         outfile = args.output
