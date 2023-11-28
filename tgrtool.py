@@ -7,14 +7,18 @@ from PIL import Image
 
 def unpack(args: argparse.Namespace):
     image_path = args.source
+    print(image_path)
+    print(Path(image_path))
     player_color = args.color
     imagefile = tgrlib.tgrFile(image_path, False)
     imagefile.load()
 
-    if args.output != '':
+    if args.output != None:
         image_name = args.output
     else:
         image_name = Path(image_path).stem
+    print(args.output)
+    print(image_name)
     Path(image_name).mkdir(exist_ok=True)
 
     frame_index = 0
@@ -88,7 +92,7 @@ unpack_parse.add_argument('-c', '--color', choices=range(1,9), default=2, type=i
 unpack_parse.add_argument('-v', '--verbose', action='store_true', help='enable debugging printouts')
 unpack_parse.add_argument('--no-align-frames', action='store_true', help='disable frame alignment within image size')
 unpack_parse.add_argument('--single-frame', default=-1, type=int, help='extract only the specified frame')
-unpack_parse.add_argument('-o', '--output', type=str, help='destination directory for unpacked files')
+unpack_parse.add_argument('-o', '--output', type=str, default=None, help='destination directory for unpacked files')
 unpack_parse.add_argument('--config', type=str, help="path to write sprite config file")
 unpack_parse.add_argument('source', type=str, help='path to target tgr file')
 
