@@ -516,6 +516,7 @@ class tgrFile:
                 run_length = self.look_ahead(p, frame_index, line_index, pixel_ix) + 1
                 if pixel_ix == 0:   # If there are no preceding opaque pixels
                     offset = run_length
+                    pixel_ix += run_length
                     if frame_index == 0:
                         print(f'f:{frame_index:>3} l:{line_index:>3} offset:{offset}')
                 elif pixel_ix + run_length >= self.framesizes[frame_index][0]:
@@ -524,10 +525,11 @@ class tgrFile:
                     flag = 0b000 << 5
                     header = flag + (run_length & 0b11111)
                     outbuf += struct.pack('<B', header)
+                    pixel_ix += run_length
+                    ct_pixels += run_length
                     if verbose:
                         print(f'  packing header {header:02X}')
-                pixel_ix += run_length
-                ct_pixels += run_length
+                
                 if verbose:
                     print(f'  advanced to c:{pixel_ix}')
                 
