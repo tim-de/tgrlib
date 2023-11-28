@@ -644,30 +644,14 @@ class tgrFile:
         return outbuf
     
     def packAnimations(self):
-        #TODO
-        data = struct.pack('<20H',
-                           6,
-                           0,
-                           12,
-                           8,
-                           96,
-                           12,
-                           8,
-                           192,
-                           12,
-                           4,
-                           240,
-                           12,
-                           4,
-                           0,
-                           0,
-                           0,
-                           288,
-                           5,
-                           4,
-                           0
-                           )
-        #print(data)
+        data = struct.pack('<H', self.anim_count)
+        for a in self.animations:
+            data += struct.pack('HHH', a[0], a[1], a[2])
+        
+        if self.anim_count % 2 == 0:
+            data += b'\x00' * 2
+        
+        print(data)
         return data
     
     def encodeHeader(self, frame_buffer: bytes):
@@ -723,12 +707,11 @@ class tgrFile:
                                0,
                                0,
                                palette_offset)
-        #print(f'frame_sizes:{frame_sizes}')
-        print(hedr_buf)
+        
         hedr_buf += frame_sizes + animations
-        chunk_length = len(hedr_buf)
-        print(f'chunk_name:{chunk_name}:{type(chunk_name)}\nchunk_length:{chunk_length}:{type(chunk_length)}')
-        return struct.pack('>4sI', chunk_name, chunk_length) + hedr_buf + frame_buffer
+               
+        #print(f'chunk_name:{chunk_name}:{type(chunk_name)}\nchunk_length:{chunk_length}:{type(chunk_length)}')
+        return struct.pack('>4sI', chunk_name, len(hedr_buf)) + hedr_buf + frame_buffer
         
     def encodeForm(self, file_buffer: bytes):
         chunk_name = b'FORM'
