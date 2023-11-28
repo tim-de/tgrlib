@@ -97,7 +97,7 @@ sub_parsers = main_parse.add_subparsers(required=True, help="available commands"
 
 unpack_parse = sub_parsers.add_parser("unpack")
 unpack_parse.set_defaults(func=unpack)
-unpack_parse.add_argument('-c', '--color', choices=range(1,9), default=2, type=int, help='use the specified player color for extracted sprites. Defaults to 2 (blue)')
+unpack_parse.add_argument('-c', '--color', choices=range(1,11), default=2, type=int, help='use the specified player color for extracted sprites. Defaults to 2 (blue)')
 unpack_parse.add_argument('-v', '--verbose', action='store_true', help='enable debugging printouts')
 unpack_parse.add_argument('--no-align-frames', action='store_true', help='disable frame alignment within image size')
 unpack_parse.add_argument('--single-frame', default=-1, type=int, help='extract only the specified frame')
@@ -108,6 +108,7 @@ unpack_parse.add_argument('source', type=str, help='path to target tgr file')
 
 pack_parse = sub_parsers.add_parser("pack")
 pack_parse.set_defaults(func=pack)
+pack_parse.add_argument('-c', '--color', choices=range(1,11), default=None, type=int, help='Specify the color list used for player-colored pixels. Pixels matching the list will be converted to player pixels')
 pack_parse.add_argument('-o', '--output', type=str, help='destination file for packed data')
 pack_parse.add_argument('--config', type=str, help='path to sprite config file')
 pack_parse.add_argument('--no-crop', action='store_true', help='Disable automatic cropping of transparent background pixels')
