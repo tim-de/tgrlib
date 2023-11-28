@@ -93,7 +93,7 @@ def pack(args: argparse.Namespace):
 ## Define parsers
 main_parse = argparse.ArgumentParser(prog="tgrtool")
 
-sub_parsers = main_parse.add_subparsers(help="available commands")
+sub_parsers = main_parse.add_subparsers(required=True, help="available commands")
 
 unpack_parse = sub_parsers.add_parser("unpack")
 unpack_parse.set_defaults(func=unpack)
