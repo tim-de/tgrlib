@@ -33,7 +33,7 @@ def unpack(args: argparse.Namespace):
         imagedata = b""
         with open(image_path, "rb") as in_fh:
             for idx in range(len(frame.lines)):
-                rawline = imagefile.extractLine(in_fh, frame_index=frame_index, line_index=idx, increment=0, color=player_color)
+                rawline = imagefile.extractLine(in_fh, frame_index=frame_index, line_index=idx, increment=0, color=player_color, fx_error_fix=args.fx_error_fix)
                 #print(f"{idx+1:3d}: 0x{frame.lines[idx].offset:06x}, {len(rawline)}")
                 if len(rawline) < frame.size[0]:
                     rawline += [tgrlib.transparency for _ in range(frame.size[0] - len(rawline))]
@@ -92,6 +92,7 @@ unpack_parse.add_argument('-c', '--color', choices=range(1,9), default=2, type=i
 unpack_parse.add_argument('-v', '--verbose', action='store_true', help='enable debugging printouts')
 unpack_parse.add_argument('--no-align-frames', action='store_true', help='disable frame alignment within image size')
 unpack_parse.add_argument('--single-frame', default=-1, type=int, help='extract only the specified frame')
+unpack_parse.add_argument('--fx-error-fix', action='store_true', help='use this if non-unit .TGR files have multicolored horizontal stripes in the output')
 unpack_parse.add_argument('-o', '--output', type=str, default=None, help='destination directory for unpacked files')
 unpack_parse.add_argument('--config', type=str, help="path to write sprite config file")
 unpack_parse.add_argument('source', type=str, help='path to target tgr file')

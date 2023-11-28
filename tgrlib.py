@@ -288,7 +288,7 @@ class tgrFile:
             (raw_pixel,) = struct.unpack("H", in_fh.read(2))
             return Pixel.from_int(raw_pixel)
 
-    def extractLine(self, fh: io.BufferedReader, frame_index=0, line_index=0, increment=0, color=2):
+    def extractLine(self, fh: io.BufferedReader, frame_index=0, line_index=0, increment=0, color=2, fx_error_fix=False):
         outbuf = []
         line_ix = 0
         pixel_ix = 0
@@ -303,6 +303,13 @@ class tgrFile:
             run_header = fh.read(1)
             line_ix += 1
             (flag, run_length) = getRunData(run_header[0])
+            
+            if fx_error_fix:
+                if run_header[0] in (0x7F, 0xFD):
+                    outbuf.append(Pixel(255, 0, 255, 0))
+                    pixel_ix += 1
+                    continue
+                    
             match flag:
                 case 0b000:
                     outbuf += [transparency for _ in range(run_length + increment)]
