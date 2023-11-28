@@ -66,11 +66,20 @@ def pack(args: argparse.Namespace):
     imagefile = tgrlib.tgrFile(args.source)
     config_path = args.config if args.config else f"{args.source}/sprite.ini"
     imagefile.load(config_path, args.no_crop)
+    
     if args.output != '' and args.output != None:
-        outfile = args.output
-        print("from args", outfile, args.output)
+        dest_path = Path(args.output)
+        if dest_path.suffix.upper() == '.TGR':
+            filename = dest_path.name
+            dest_path = dest_path.parent
+        else:
+            filename = imagefile.filename.stem + '.tgr'
+            
+        dest_path.mkdir(exist_ok=True, parents=True)
+        outfile = dest_path / filename
     else:
         outfile = imagefile.filename.stem + '.tgr'
+        
     data = b''
     for frame_index in range(0,len(imagefile.img_data)):
         imagefile.frameoffsets.append(len(data))
