@@ -52,12 +52,19 @@ def unpack(args: argparse.Namespace):
             offset = imagefile.frameoffsets[frame_index][0]
             image.paste(fram_img, offset)
         image.save(f"{image_name}/fram_{frame_index:04d}.png")
+    if args.config:
+        config_path = args.config
+    else:
+        config_path = f"{image_name}/sprite.ini"
+    imagefile.write_config(config_path)
 
-def pack(args):
+def pack(args: argparse.Namespace):
     imagefile = tgrlib.tgrFile(args.source)
-    imagefile.load()
-    if args.output != '':
+    config_path = args.config if args.config else f"{args.source}/sprite.tgr"
+    imagefile.load(config_path)
+    if args.output != '' and args.output != None:
         outfile = args.output
+        print("from args", outfile, args.output)
     else:
         outfile = imagefile.filename.stem + '.tgr'
     data = b''
@@ -66,6 +73,7 @@ def pack(args):
         data += imagefile.encodeFrame(frame_index)
     data = imagefile.encodeHeader(data)
     data = imagefile.encodeForm(data)
+    print("writing to: ", outfile)
     with open(outfile ,'wb') as fh_out:
         fh_out.write(data)
 
@@ -80,15 +88,15 @@ unpack_parse.add_argument('-c', '--color', choices=range(1,9), default=2, type=i
 unpack_parse.add_argument('-v', '--verbose', action='store_true', help='enable debugging printouts')
 unpack_parse.add_argument('--no-align-frames', action='store_true', help='disable frame alignment within image size')
 unpack_parse.add_argument('--single-frame', default=-1, type=int, help='extract only the specified frame')
-unpack_parse.add_argument('-o', '--output', default='', type=str, help='destination directory for unpacked files')
-unpack_parse.add_argument('--config', type=str, help='write to specified config file')
+unpack_parse.add_argument('-o', '--output', type=str, help='destination directory for unpacked files')
+unpack_parse.add_argument('--config', type=str, help="path to write sprite config file")
 unpack_parse.add_argument('source', type=str, help='path to target tgr file')
 
 pack_parse = sub_parsers.add_parser("pack")
 pack_parse.set_defaults(func=pack)
 pack_parse.add_argument('-o', '--output', type=str, help='destination file for packed data')
+pack_parse.add_argument('--config', type=str, help='path to sprite config file')
 pack_parse.add_argument('source', type=str, help='path to file or directory to unpack')
-pack_parse.add_argument('--config', default='', type=str, help='read from specified config file')
 
 if __name__ == '__main__':
     args = main_parse.parse_args()

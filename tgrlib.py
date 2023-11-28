@@ -194,7 +194,7 @@ class tgrFile:
         self.frameoffsets = []
         self.frames = []
 
-    def load(self):
+    def load(self, config_path: str|None=None):
         match self.read_from:
             case '.TGR':
                 self.iff.load()
@@ -205,7 +205,7 @@ class tgrFile:
                     self.load_palette()
                 self.get_frames()
             case '.PNG':
-                self.read_config()
+                self.read_config(config_path)
                 self.img_data = [[] for _ in range(len(self.imgs))]
                 self.size = self.imgs[0].size
                 for index, img in enumerate(self.imgs):
@@ -363,9 +363,11 @@ class tgrFile:
             outbuf += [transparency for _ in range(line.pixel_length - len(outbuf))]
         return outbuf
     
-    def read_config(self):
+    def read_config(self, config_path: str|None=None):
         config = ConfigParser()
-        config.read(self.filename / 'sprite.ini')
+        if not config_path:
+            config_path = f"{self.filename} / 'sprite.ini'"
+        config.read(config_path)
         self.bits_per_px = int(config['BitDepth']['Depth'])
         self.hotspot = (int(config['HotSpot']['X']), int(config['HotSpot']['Y']))
         self.bounding_box = (int(config['BoundingBox']['XMin']), int(config['BoundingBox']['YMin']), int(config['BoundingBox']['XMax']), int(config['BoundingBox']['YMax']))
@@ -387,7 +389,9 @@ class tgrFile:
             
         
     
-    def write_config(self):
+    def write_config(self, config_path: str|None=None):
+        if config_path == None:
+            config_path = f'{self.filename.stem}/sprite.ini'
         config = ConfigParser(dict_type=OrderedDict, allow_no_value=True)
         config.optionxform = str
         config.add_section('Description')
@@ -429,7 +433,7 @@ class tgrFile:
             config.set(f'Animation{i}', 'FrameCount', str(self.animations[i][1]))
             config.set(f'Animation{i}', 'FrameRate', str(self.animations[i][2]))
         
-        with open(f'{self.filename.stem}/sprite.ini', 'w') as c_fh:
+        with open(config_path, 'w') as c_fh:
             config.write(c_fh)
 
     def look_ahead(self, p: Pixel, frame_index, line_index, pixel_ix, matching=True):
@@ -500,7 +504,8 @@ class tgrFile:
         
         while pixel_ix < self.framesizes[frame_index][0]:
             if frame_index == 0:
-                print(f'TOP OF LOOP: pixel_ix:{pixel_ix}')
+                if verbose:
+                    print(f'TOP OF LOOP: pixel_ix:{pixel_ix}')
             
             p = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix])
             if verbose:

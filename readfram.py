@@ -67,6 +67,6 @@ if __name__ == "__main__":
             offset = imagefile.frameoffsets[frame_index][0]
             image.paste(fram_img, offset)
         image.save(f"{image_name}/fram_{frame_index:04d}.png")
-        imagefile.write_config()
+    imagefile.write_config()
 
         #image.save(f"{image_name}.png")
