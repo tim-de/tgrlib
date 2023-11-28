@@ -84,7 +84,7 @@ transparency = Pixel(0x00, 0xff, 0xff, 0x00)
 
 def load_player_colors(filename: str = "COLORS.INI"):
     c_file = ConfigParser()
-    c_file.read(filename)
+    c_file.read(Path(__file__).resolve().with_name(filename))
     player_cols = {}
     c_name_re = re.compile(r"color_(\d{1,2})_shade_(\d{1,2})")
     c_value_re = re.compile(r"\W*(\d{1,3}),(\d{1,3}),(\d{1,3})")
