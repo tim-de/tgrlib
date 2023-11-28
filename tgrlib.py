@@ -499,7 +499,7 @@ class tgrFile:
         return struct.pack('>'+lfc+'B'+pfc, line_length+header_length, offset, ct_pixels) + outbuf
         
         
-    def encodeLine(self, frame_index=0, line_index=0):
+    def encodeLine(self, frame_index=0, line_index=0, color=None):
         if verbose:
             print(f"image size:{self.size}")
         pixel_ix = 0
@@ -565,6 +565,20 @@ class tgrFile:
                 ct_pixels += run_length
                 if verbose:
                     print(f'  advanced to c:{pixel_ix}')
+                    
+            elif color and p in player_cols[color].values():
+                if frame_index == 0:
+                    print(f'matched pixel {p} in color list {color}')
+                if verbose:
+                    printf('  chose flag 0b110')
+                flag = 0b110 << 5
+                color_index = list(player_cols[color].keys())[list(player_cols[color].values()).index(p)]
+                header = flag + (color_index & 0b11111)
+                outbuf += struct.pack('B', header)
+                pixel_ix += 1
+                ct_pixels += 1
+                if frame_index == 0:
+                    print(f'  packed {header:02X}, flag {flag}, index {color_index}')
                 
             else:                   # Encode opaque pixels
                 matching = self.look_ahead(p, frame_index, line_index, pixel_ix)
@@ -609,10 +623,10 @@ class tgrFile:
         return self.encodeLineHeader(frame_index, line_index, outbuf, ct_pixels, offset=offset)    
         
     
-    def encodeFrame(self, frame_index=0):
+    def encodeFrame(self, frame_index=0, color=None):
         outbuf = b''
         for line_index in range(0,self.framesizes[frame_index][1]):
-            outbuf += self.encodeLine(frame_index=frame_index,line_index=line_index)
+            outbuf += self.encodeLine(frame_index=frame_index, line_index=line_index, color=color)
         
         # pad frame to 4-byte boundary
         if len(outbuf) % 4 != 0:
