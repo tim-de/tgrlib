@@ -78,7 +78,7 @@ def pack(args: argparse.Namespace):
         fh_out.write(data)
 
 ## Define parsers
-main_parse = argparse.ArgumentParser(prog="tgxtool")
+main_parse = argparse.ArgumentParser(prog="tgrtool")
 
 sub_parsers = main_parse.add_subparsers(help="available commands")
 
