@@ -15,7 +15,6 @@ from configparser import ConfigParser
 from collections import OrderedDict
 
 verbose = False
-crop_frames = True
 frame_number_re = re.compile(r"fram_(\d{1,4})")
 
 def read_line_length(in_fh: io.BufferedReader):
@@ -194,7 +193,7 @@ class tgrFile:
         self.frameoffsets = []
         self.frames = []
 
-    def load(self, config_path: str|None=None):
+    def load(self, config_path: str|None=None, no_crop=False):
         match self.read_from:
             case '.TGR':
                 self.iff.load()
@@ -211,19 +210,19 @@ class tgrFile:
                 for index, img in enumerate(self.imgs):
                     if img.size != self.size:
                         raise ValueError(f"Frame:{index} size:{img.size} doesn't match Frame:0 size:{self.size}")
-                    # from https://stackoverflow.com/a/67677468
-                    img_array = np.array(img)
-                    # Find indices of non-transparent pixels (indices where alpha channel value is above zero).
-                    idx = np.where(img_array[:, :, 3] > 0)
-                    # Get minimum and maximum index in both axes (top left corner and bottom right corner)
-                    x0, y0, x1, y1 = idx[1].min(), idx[0].min(), idx[1].max(), idx[0].max()
-                    
-                    if crop_frames:
+                    if not no_crop:
+                        # from https://stackoverflow.com/a/67677468
+                        img_array = np.array(img)
+                        # Find indices of non-transparent pixels (indices where alpha channel value is above zero).
+                        idx = np.where(img_array[:, :, 3] > 0)
+                        # Get minimum and maximum index in both axes (top left corner and bottom right corner)
+                        x0, y0, x1, y1 = idx[1].min(), idx[0].min(), idx[1].max(), idx[0].max()
                         # Crop rectangle and convert to Image
                         img = Image.fromarray(img_array[y0:y1+1, x0:x1+1, :])
-                    
+                        self.framesizes.append([x1-x0+1, y1-y0+1, x0, y0, x1, y1])  # +1 includes both endpoints
+                    else:
+                        self.framesizes.append([img.size[0], img.size[1], 0, 0, img.size[0]-1, img.size[1]-1])
                     self.img_data[index] = img.getdata()
-                    self.framesizes.append([x1-x0+1, y1-y0+1, x0, y0, x1, y1])  # +1 includes both endpoints
                     
 
     def read_header(self):
@@ -289,7 +288,7 @@ class tgrFile:
             (raw_pixel,) = struct.unpack("H", in_fh.read(2))
             return Pixel.from_int(raw_pixel)
 
-    def extractLine(self, fh: io.BufferedReader, frame_index=0, line_index=0, increment=0, color=2):
+    def extractLine(self, fh: io.BufferedReader, frame_index=0, line_index=0, increment=0, color=2, fx_error_fix=False):
         outbuf = []
         line_ix = 0
         pixel_ix = 0
@@ -304,6 +303,13 @@ class tgrFile:
             run_header = fh.read(1)
             line_ix += 1
             (flag, run_length) = getRunData(run_header[0])
+            
+            if fx_error_fix:
+                if run_header[0] in (0x7F, 0xFD):
+                    outbuf.append(Pixel(255, 0, 255, 0))
+                    pixel_ix += 1
+                    continue
+                    
             match flag:
                 case 0b000:
                     outbuf += [transparency for _ in range(run_length + increment)]
@@ -382,7 +388,7 @@ class tgrFile:
                 anim_number = int(m.group(1))
                 if anim_number > self.anim_count:
                     self.anim_count = anim_number + 1
-                self.animations[anim_number] = (int(config[f'Animation{anim_number}']['StartFrame']), int(config[f'Animation{anim_number}']['FrameCount']), int(config[f'Animation{anim_number}']['FrameRate']))
+                self.animations[anim_number] = (int(config[f'Animation{anim_number}']['StartFrame']), int(config[f'Animation{anim_number}']['FrameCount']), int(config[f'Animation{anim_number}']['AnimationCount']))
         
         self.animations = self.animations[:self.anim_count]
         print(self.anim_count, self.animations)
@@ -416,10 +422,10 @@ class tgrFile:
         config.set('BoundingBox', 'YMax', str(self.bounding_box[3]))
         
         config.add_section('Animations')
-        config.set('Animations', ('; Sprites can have up to six animations, each consisting of a Start Frame, Frame Count, and Frame Rate\n'+
+        config.set('Animations', ('; Sprites can have up to six animations, each consisting of a Start Frame, Frame Count, and Animation Count\n'+
                                   '; Start Frame is the first frame of the West-facing version of the animation. Subsequent versions are in counterclockwise order\n'+
                                   '; Frame Count is the number of frames in each version of the animation\n'+
-                                  '; Frame rate is how long each frame is displayed in hundredths of a second\n'+
+                                  '; Animation Count is the number of different versions of the animation. The default is 8 for Walk, Attack0, and Attack1, and 4 for Die, Idle, and Rot\n'+
                                   '; Animation0 is Walk for units and projectiles, and is the default animation for buildings\n'+
                                   '; Animation1 is Attack0 for units\n'+
                                   '; Animation2 is Die for units and projectiles\n'+
@@ -431,7 +437,7 @@ class tgrFile:
             config.add_section(f'Animation{i}')
             config.set(f'Animation{i}', 'StartFrame', str(self.animations[i][0]))
             config.set(f'Animation{i}', 'FrameCount', str(self.animations[i][1]))
-            config.set(f'Animation{i}', 'FrameRate', str(self.animations[i][2]))
+            config.set(f'Animation{i}', 'AnimationCount', str(self.animations[i][2]))
         
         with open(config_path, 'w') as c_fh:
             config.write(c_fh)
@@ -517,6 +523,7 @@ class tgrFile:
                 run_length = self.look_ahead(p, frame_index, line_index, pixel_ix) + 1
                 if pixel_ix == 0:   # If there are no preceding opaque pixels
                     offset = run_length
+                    pixel_ix += run_length
                     if frame_index == 0:
                         print(f'f:{frame_index:>3} l:{line_index:>3} offset:{offset}')
                 elif pixel_ix + run_length >= self.framesizes[frame_index][0]:
@@ -525,10 +532,11 @@ class tgrFile:
                     flag = 0b000 << 5
                     header = flag + (run_length & 0b11111)
                     outbuf += struct.pack('<B', header)
+                    pixel_ix += run_length
+                    ct_pixels += run_length
                     if verbose:
                         print(f'  packing header {header:02X}')
-                pixel_ix += run_length
-                ct_pixels += run_length
+                
                 if verbose:
                     print(f'  advanced to c:{pixel_ix}')
                 
@@ -644,30 +652,14 @@ class tgrFile:
         return outbuf
     
     def packAnimations(self):
-        #TODO
-        data = struct.pack('<20H',
-                           6,
-                           0,
-                           12,
-                           8,
-                           96,
-                           12,
-                           8,
-                           192,
-                           12,
-                           4,
-                           240,
-                           12,
-                           4,
-                           0,
-                           0,
-                           0,
-                           288,
-                           5,
-                           4,
-                           0
-                           )
-        #print(data)
+        data = struct.pack('<H', self.anim_count)
+        for a in self.animations:
+            data += struct.pack('HHH', a[0], a[1], a[2])
+        
+        if self.anim_count % 2 == 0:
+            data += b'\x00' * 2
+        
+        print(data)
         return data
     
     def encodeHeader(self, frame_buffer: bytes):
@@ -723,12 +715,11 @@ class tgrFile:
                                0,
                                0,
                                palette_offset)
-        #print(f'frame_sizes:{frame_sizes}')
-        print(hedr_buf)
+        
         hedr_buf += frame_sizes + animations
-        chunk_length = len(hedr_buf)
-        print(f'chunk_name:{chunk_name}:{type(chunk_name)}\nchunk_length:{chunk_length}:{type(chunk_length)}')
-        return struct.pack('>4sI', chunk_name, chunk_length) + hedr_buf + frame_buffer
+               
+        #print(f'chunk_name:{chunk_name}:{type(chunk_name)}\nchunk_length:{chunk_length}:{type(chunk_length)}')
+        return struct.pack('>4sI', chunk_name, len(hedr_buf)) + hedr_buf + frame_buffer
         
     def encodeForm(self, file_buffer: bytes):
         chunk_name = b'FORM'
