@@ -5,6 +5,8 @@ import argparse
 from PIL import Image
 from pathlib import Path
 
+tgrlib.is_font = True
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
                         prog='readfram.py',

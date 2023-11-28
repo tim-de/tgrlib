@@ -15,6 +15,7 @@ from configparser import ConfigParser
 from collections import OrderedDict
 
 verbose = False
+is_font = False
 frame_number_re = re.compile(r"fram_(\d{1,4})")
 
 def read_line_length(in_fh: io.BufferedReader):
@@ -61,6 +62,10 @@ class Pixel:
         red = round(((half_word >> 11) & 0b11111) / 31 * 255)
 
         return cls(red, green, blue)
+
+    @classmethod
+    def from_value(cls, value: int):
+        return cls(value, value, value)
     
     def to_int(self):
         r5 = round(self.red / 255 * 31)
@@ -231,8 +236,9 @@ class tgrFile:
             (self.version,
              self.framecount,
              self.bits_per_px) = struct.unpack("IHBx", in_fh.read(8))
-            (index_mode,
-             self.offset_flag) = struct.unpack("xBBx", in_fh.read(4))
+            (self.magic,
+             index_mode,
+             self.offset_flag) = struct.unpack("BBBx", in_fh.read(4))
             self.size = struct.unpack("HH", in_fh.read(4))
             self.hotspot = struct.unpack("HH", in_fh.read(4))
             print(self.size)
@@ -288,6 +294,50 @@ class tgrFile:
             (raw_pixel,) = struct.unpack("H", in_fh.read(2))
             return Pixel.from_int(raw_pixel)
 
+    def extractFontLine(self, fh:io.BufferedReader, line: Line):
+        line_ix = 0
+        outbuf = []
+        fh.seek(line.offset)
+        while line_ix < line.data_length:
+            byte = fh.read(1)
+            line_ix += 1
+            (flag, value) = getRunData(byte[0])
+            match flag:
+                case 0b000:
+                    outbuf += [transparency for _ in range(value)]
+                case 0b001:
+                    (rawpx,) = struct.unpack("H", fh.read(2))
+                    line_ix += 2
+                    pixel = Pixel.from_int(rawpx)
+                    outbuf += [pixel for _ in range(value)]
+                case 0b010:
+                    (rawpx,) = struct.unpack("H", fh.read(2))
+                    line_ix += 2
+                    pixel = Pixel.from_int(rawpx)
+                    outbuf.append(pixel)
+                case 0b110:
+                    outbuf.append(Pixel.from_value(round(value * (255/31))))
+                case 0b111:
+                    if value > 20:
+                        value &= 0x7
+                        red = round(value * (255/7))
+                        rawpx = fh.read(1)[0]
+                        line_ix += 1
+                        basegreen, baseblue = rawpx >> 4, rawpx & 15
+                        green, blue = round(basegreen * (255/15)), round(baseblue * (255/16))
+                        outbuf.append(Pixel(red, green, blue))
+                    else:
+                        for ix in range(value):
+                            if ix % 2 == 0: 
+                                rawpx = fh.read(1)
+                                line_ix += 1
+                                pixelvals = (rawpx[0] & 0xf, rawpx[0] >> 4)
+                            outbuf.append(Pixel.from_value(round(pixelvals[(value - ix) % 2] * (255/15))))
+                case _:
+                    print(f"Found something bad: flag 0b{flag:03b} at 0x{fh.tell()-1:08x}")
+        return outbuf
+
+
     def extractLine(self, fh: io.BufferedReader, frame_index=0, line_index=0, increment=0, color=2, fx_error_fix=False):
         outbuf = []
         line_ix = 0
@@ -298,8 +348,14 @@ class tgrFile:
         for _ in range(line.transparent_pixels):
             outbuf.append(transparency)
         pixel_ix += line.transparent_pixels
+
+        if is_font and (frame_index == 127 or frame_index == 94):
+            return outbuf
+        if is_font and (frame_index < 94 or frame_index >= 107):
+            return outbuf + self.extractFontLine(fh, line)
         
         while line_ix < line.data_length:# and pixel_ix < line.pixel_length:
+
             run_header = fh.read(1)
             line_ix += 1
             (flag, run_length) = getRunData(run_header[0])
