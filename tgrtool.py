@@ -65,7 +65,7 @@ def unpack(args: argparse.Namespace):
 def pack(args: argparse.Namespace):
     imagefile = tgrlib.tgrFile(args.source)
     config_path = args.config if args.config else f"{args.source}/sprite.ini"
-    imagefile.load(config_path)
+    imagefile.load(config_path, args.no_crop)
     if args.output != '' and args.output != None:
         outfile = args.output
         print("from args", outfile, args.output)
@@ -100,6 +100,7 @@ pack_parse = sub_parsers.add_parser("pack")
 pack_parse.set_defaults(func=pack)
 pack_parse.add_argument('-o', '--output', type=str, help='destination file for packed data')
 pack_parse.add_argument('--config', type=str, help='path to sprite config file')
+pack_parse.add_argument('--no-crop', action='store_true', help='Disable automatic cropping of transparent background pixels')
 pack_parse.add_argument('source', type=str, help='path to file or directory to unpack')
 
 if __name__ == '__main__':

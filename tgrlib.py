@@ -15,7 +15,6 @@ from configparser import ConfigParser
 from collections import OrderedDict
 
 verbose = False
-crop_frames = True
 frame_number_re = re.compile(r"fram_(\d{1,4})")
 
 def read_line_length(in_fh: io.BufferedReader):
@@ -194,7 +193,7 @@ class tgrFile:
         self.frameoffsets = []
         self.frames = []
 
-    def load(self, config_path: str|None=None):
+    def load(self, config_path: str|None=None, no_crop=False):
         match self.read_from:
             case '.TGR':
                 self.iff.load()
@@ -211,19 +210,19 @@ class tgrFile:
                 for index, img in enumerate(self.imgs):
                     if img.size != self.size:
                         raise ValueError(f"Frame:{index} size:{img.size} doesn't match Frame:0 size:{self.size}")
-                    # from https://stackoverflow.com/a/67677468
-                    img_array = np.array(img)
-                    # Find indices of non-transparent pixels (indices where alpha channel value is above zero).
-                    idx = np.where(img_array[:, :, 3] > 0)
-                    # Get minimum and maximum index in both axes (top left corner and bottom right corner)
-                    x0, y0, x1, y1 = idx[1].min(), idx[0].min(), idx[1].max(), idx[0].max()
-                    
-                    if crop_frames:
+                    if not no_crop:
+                        # from https://stackoverflow.com/a/67677468
+                        img_array = np.array(img)
+                        # Find indices of non-transparent pixels (indices where alpha channel value is above zero).
+                        idx = np.where(img_array[:, :, 3] > 0)
+                        # Get minimum and maximum index in both axes (top left corner and bottom right corner)
+                        x0, y0, x1, y1 = idx[1].min(), idx[0].min(), idx[1].max(), idx[0].max()
                         # Crop rectangle and convert to Image
                         img = Image.fromarray(img_array[y0:y1+1, x0:x1+1, :])
-                    
+                        self.framesizes.append([x1-x0+1, y1-y0+1, x0, y0, x1, y1])  # +1 includes both endpoints
+                    else:
+                        self.framesizes.append([img.size[0], img.size[1], 0, 0, img.size[0]-1, img.size[1]-1])
                     self.img_data[index] = img.getdata()
-                    self.framesizes.append([x1-x0+1, y1-y0+1, x0, y0, x1, y1])  # +1 includes both endpoints
                     
 
     def read_header(self):
