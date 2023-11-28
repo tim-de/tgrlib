@@ -388,7 +388,7 @@ class tgrFile:
                 anim_number = int(m.group(1))
                 if anim_number > self.anim_count:
                     self.anim_count = anim_number + 1
-                self.animations[anim_number] = (int(config[f'Animation{anim_number}']['StartFrame']), int(config[f'Animation{anim_number}']['FrameCount']), int(config[f'Animation{anim_number}']['FrameRate']))
+                self.animations[anim_number] = (int(config[f'Animation{anim_number}']['StartFrame']), int(config[f'Animation{anim_number}']['FrameCount']), int(config[f'Animation{anim_number}']['AnimationCount']))
         
         self.animations = self.animations[:self.anim_count]
         print(self.anim_count, self.animations)
@@ -422,10 +422,10 @@ class tgrFile:
         config.set('BoundingBox', 'YMax', str(self.bounding_box[3]))
         
         config.add_section('Animations')
-        config.set('Animations', ('; Sprites can have up to six animations, each consisting of a Start Frame, Frame Count, and Frame Rate\n'+
+        config.set('Animations', ('; Sprites can have up to six animations, each consisting of a Start Frame, Frame Count, and Animation Count\n'+
                                   '; Start Frame is the first frame of the West-facing version of the animation. Subsequent versions are in counterclockwise order\n'+
                                   '; Frame Count is the number of frames in each version of the animation\n'+
-                                  '; Frame rate is how long each frame is displayed in hundredths of a second\n'+
+                                  '; Animation Count is the number of different versions of the animation. The default is 8 for Walk, Attack0, and Attack1, and 4 for Die, Idle, and Rot\n'+
                                   '; Animation0 is Walk for units and projectiles, and is the default animation for buildings\n'+
                                   '; Animation1 is Attack0 for units\n'+
                                   '; Animation2 is Die for units and projectiles\n'+
@@ -437,7 +437,7 @@ class tgrFile:
             config.add_section(f'Animation{i}')
             config.set(f'Animation{i}', 'StartFrame', str(self.animations[i][0]))
             config.set(f'Animation{i}', 'FrameCount', str(self.animations[i][1]))
-            config.set(f'Animation{i}', 'FrameRate', str(self.animations[i][2]))
+            config.set(f'Animation{i}', 'AnimationCount', str(self.animations[i][2]))
         
         with open(config_path, 'w') as c_fh:
             config.write(c_fh)
