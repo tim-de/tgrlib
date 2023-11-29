@@ -481,20 +481,19 @@ class tgrFile:
         assert offset <= 0xFF, f'f:{frame_index: >4} l:{line_index: >4} offset to first non-padding pixel exceeds 8 bit maximum'
         assert ct_pixels <= 0x7FFF, f'f:{frame_index: >4} l:{line_index: >4} pixel count {ct_pixels} exceeds 15 bit maximum'
         
-             
-        if line_length > 0x7F:
-            line_length = line_length | 0x8000
-            lfc = 'H'
-            header_length += 1
-        else:
-            lfc = 'B'
-        
         if ct_pixels > 0x7F:
             ct_pixels = ct_pixels | 0x8000
             pfc = 'H'
             header_length += 1
         else:
             pfc = 'B'
+        
+        if line_length + header_length > 0x7F:
+            line_length = line_length | 0x8000
+            lfc = 'H'
+            header_length += 1
+        else:
+            lfc = 'B'
         
         return struct.pack('>'+lfc+'B'+pfc, line_length+header_length, offset, ct_pixels) + outbuf
         
