@@ -318,13 +318,13 @@ class tgrFile:
                 case 0b110:
                     outbuf.append(Pixel.from_value(round(value * (255/31))))
                 case 0b111:
-                    if value > 20:
+                    if value > 24:
                         value &= 0x7
                         red = round(value * (255/7))
                         rawpx = fh.read(1)[0]
                         line_ix += 1
-                        basegreen, baseblue = rawpx >> 4, rawpx & 15
-                        green, blue = round(basegreen * (255/15)), round(baseblue * (255/16))
+                        basegreen, baseblue = rawpx >> 3, rawpx & 7
+                        green, blue = round(basegreen * (255/31)), round(baseblue * (255/7))
                         outbuf.append(Pixel(red, green, blue))
                     else:
                         for ix in range(value):
