@@ -442,13 +442,17 @@ class tgrFile:
         with open(config_path, 'w') as c_fh:
             config.write(c_fh)
 
-    def look_ahead(self, p: Pixel, frame_index, line_index, pixel_ix, matching=True):
+    def look_ahead(self, p: Pixel, frame_index, line_index, pixel_ix, matching=True, color=None):
         collected = 0
         if matching:
             if frame_index == 0:
                 print(f'frame_index:{frame_index} (max:{len(self.img_data)}) pixel:{pixel_ix + collected + 1} (max:{self.framesizes[frame_index][0]}) total:{line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1} (max:{len(self.img_data[frame_index])}) size_data:{self.framesizes[frame_index]}')
-            while (pixel_ix + collected + 1 < self.framesizes[frame_index][0] and
-                   p == Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1])):
+            while (pixel_ix + collected + 1 < self.framesizes[frame_index][0]):
+                next_pixel = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1])
+                if p != next_pixel:
+                    break
+                if color and next_pixel in player_cols[color].values():
+                    break
                 collected += 1
                 if collected == 30:
                     break
@@ -462,6 +466,8 @@ class tgrFile:
                 this_pixel = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected])
                 next_pixel = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1])
                 if this_pixel == next_pixel or this_pixel.alpha != 255:
+                    break
+                if color and this_pixel in player_cols[color].values():
                     break
                 if frame_index == 0:
                     print(f"\tLook_Ahead: pixel {this_pixel} at c:{pixel_ix + collected} doesn't match pixel {next_pixel} at c:{pixel_ix + collected + 1}")
@@ -498,7 +504,7 @@ class tgrFile:
         return struct.pack('>'+lfc+'B'+pfc, line_length+header_length, offset, ct_pixels) + outbuf
         
         
-    def encodeLine(self, frame_index=0, line_index=0):
+    def encodeLine(self, frame_index=0, line_index=0, color=None):
         if verbose:
             print(f"image size:{self.size}")
         pixel_ix = 0
@@ -539,6 +545,14 @@ class tgrFile:
                 if verbose:
                     print(f'  advanced to c:{pixel_ix}')
                 
+            elif p == shadow:
+                ct_shadow = self.look_ahead(p, frame_index, line_index, pixel_ix) + 1
+                flag = 0b101 << 5
+                header = flag + (ct_shadow & 0b11111)
+                outbuf += struct.pack('<B', header)
+                pixel_ix += ct_shadow
+                ct_pixels += ct_shadow
+                
             elif p.alpha < 255:     #Encode translucent pixels                    
                 run_length = self.look_ahead(p, frame_index, line_index, pixel_ix) + 1
                 (r,g,b,a) = p.to_int()
@@ -564,9 +578,9 @@ class tgrFile:
                 ct_pixels += run_length
                 if verbose:
                     print(f'  advanced to c:{pixel_ix}')
-                
+                    
             else:                   # Encode opaque pixels
-                matching = self.look_ahead(p, frame_index, line_index, pixel_ix)
+                matching = self.look_ahead(p, frame_index, line_index, pixel_ix, color=color)
                 if matching:
                     if verbose:
                         print(f'  chose flag 0b001')
@@ -580,38 +594,64 @@ class tgrFile:
                     ct_pixels += run_length
                     if verbose:
                         print(f'  packing header {header:02X} and body {body:04X}\n  advanced to c:{pixel_ix}')
+                
                 else:
-                    if verbose:
-                        print(f'  chose flag 0b010')
-                    run_length = self.look_ahead(p, frame_index, line_index, pixel_ix, matching=False)
-                    if verbose:
-                        print(f'  found {run_length} unique pixels')
-                    flag = 0b010 << 5
-                    header = flag + (run_length & 0b11111)
-                    outbuf += struct.pack('<B', header)
-                    if verbose:
-                        print(f'  packing header {header:02X}')
-                    for i in range(0,run_length):
-                        cur_pix = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + i])
-                        (r,g,b,a) = cur_pix.to_int()
+                    non_matching = self.look_ahead(p, frame_index, line_index, pixel_ix, matching=False, color=color)
+                    if non_matching:
                         if verbose:
-                            print(f'    p:{cur_pix} r:{r} g:{g} b:{b} a:{a}')
-                        body = (r << 11) + (g << 5) + b
-                        outbuf += struct.pack('<H', body)
+                            print(f'  chose flag 0b010')
+                        run_length = non_matching
                         if verbose:
-                            print(f'    packing body:{body:04X}')
-                    pixel_ix += run_length
-                    ct_pixels += run_length
+                            print(f'  found {run_length} unique pixels')
+                        flag = 0b010 << 5
+                        header = flag + (run_length & 0b11111)
+                        outbuf += struct.pack('<B', header)
+                        if verbose:
+                            print(f'  packing header {header:02X}')
+                        for i in range(0,run_length):
+                            cur_pix = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + i])
+                            (r,g,b,a) = cur_pix.to_int()
+                            if verbose:
+                                print(f'    p:{cur_pix} r:{r} g:{g} b:{b} a:{a}')
+                            body = (r << 11) + (g << 5) + b
+                            outbuf += struct.pack('<H', body)
+                            if verbose:
+                                print(f'    packing body:{body:04X}')
+                        pixel_ix += run_length
+                        ct_pixels += run_length
+                        
+                    elif color and p in player_cols[color].values():
+                        if frame_index == 0:
+                            print(f'matched pixel {p} in color list {color}')
+                        if verbose:
+                            printf('  chose flag 0b110')
+                        flag = 0b110 << 5
+                        color_index = list(player_cols[color].keys())[list(player_cols[color].values()).index(p)]
+                        header = flag + (color_index & 0b11111)
+                        outbuf += struct.pack('B', header)
+                        pixel_ix += 1
+                        ct_pixels += 1
+                        if frame_index == 0:
+                            print(f'  packed {header:02X}, flag {flag}, index {color_index}')
+                    
+                    else:
+                        print(f'f:{frame_index: >4} l:{line_index: >4} p:{pixel_ix} : could not pack {p}, defaulting to 0x0000')
+                        header = 0b01000001
+                        pixel = 0x0000
+                        outbuf += struct.pack('<BH', header, body)
+                        pixel_ix += 1
+                        ct_pixels += 1
+                        
                 if verbose:
                         print(f'  advanced to c:{pixel_ix}')
                     
         return self.encodeLineHeader(frame_index, line_index, outbuf, ct_pixels, offset=offset)    
         
     
-    def encodeFrame(self, frame_index=0):
+    def encodeFrame(self, frame_index=0, color=None):
         outbuf = b''
         for line_index in range(0,self.framesizes[frame_index][1]):
-            outbuf += self.encodeLine(frame_index=frame_index,line_index=line_index)
+            outbuf += self.encodeLine(frame_index=frame_index, line_index=line_index, color=color)
         
         # pad frame to 4-byte boundary
         if len(outbuf) % 4 != 0:
