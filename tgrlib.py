@@ -546,6 +546,14 @@ class tgrFile:
                 if verbose:
                     print(f'  advanced to c:{pixel_ix}')
                 
+            elif p == shadow:
+                ct_shadow = self.look_ahead(p, frame_index, line_index, pixel_ix) + 1
+                flag = 0b101 << 5
+                header = flag + (ct_shadow & 0b11111)
+                outbuf += struct.pack('<B', header)
+                pixel_ix += ct_shadow
+                ct_pixels += ct_shadow
+                
             elif p.alpha < 255:     #Encode translucent pixels                    
                 run_length = self.look_ahead(p, frame_index, line_index, pixel_ix) + 1
                 (r,g,b,a) = p.to_int()
