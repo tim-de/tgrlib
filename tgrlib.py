@@ -80,7 +80,7 @@ class Pixel:
                 raise Exception("Invalid pixel format specifier")
 
 shadow = Pixel(0, 0, 0, 0x80)
-transparency = Pixel(0x00, 0xff, 0xff, 0x00)
+transparency = Pixel(0x00, 0x00, 0x00, 0x00)
 
 def load_player_colors(filename: str = "COLORS.INI"):
     c_file = ConfigParser()
@@ -522,7 +522,7 @@ class tgrFile:
             if verbose:
                 print(f'reading p:{p} at l:{line_index} c:{pixel_ix}')
             
-            if p.alpha == 0:        # Encode transparent pixels
+            if p == transparency:        # Encode transparent pixels
                 if verbose:
                     print(f'  chose flag 0b000')
                 run_length = self.look_ahead(p, frame_index, line_index, pixel_ix) + 1
