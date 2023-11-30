@@ -386,7 +386,7 @@ class tgrFile:
             m = anim_number_re.match(k)
             if m:
                 anim_number = int(m.group(1))
-                if anim_number > self.anim_count:
+                if anim_number >= self.anim_count:
                     self.anim_count = anim_number + 1
                 self.animations[anim_number] = (int(config[f'Animation{anim_number}']['StartFrame']), int(config[f'Animation{anim_number}']['FrameCount']), int(config[f'Animation{anim_number}']['AnimationCount']))
         
