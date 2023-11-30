@@ -80,7 +80,7 @@ class Pixel:
                 raise Exception("Invalid pixel format specifier")
 
 shadow = Pixel(0, 0, 0, 0x80)
-transparency = Pixel(0x00, 0xff, 0xff, 0x00)
+transparency = Pixel(0x00, 0x00, 0x00, 0x00)
 
 def load_player_colors(filename: str = "COLORS.INI"):
     c_file = ConfigParser()
@@ -386,7 +386,7 @@ class tgrFile:
             m = anim_number_re.match(k)
             if m:
                 anim_number = int(m.group(1))
-                if anim_number > self.anim_count:
+                if anim_number >= self.anim_count:
                     self.anim_count = anim_number + 1
                 self.animations[anim_number] = (int(config[f'Animation{anim_number}']['StartFrame']), int(config[f'Animation{anim_number}']['FrameCount']), int(config[f'Animation{anim_number}']['AnimationCount']))
         
@@ -442,7 +442,7 @@ class tgrFile:
         with open(config_path, 'w') as c_fh:
             config.write(c_fh)
 
-    def look_ahead(self, p: Pixel, frame_index, line_index, pixel_ix, matching=True, color=None):
+    def look_ahead(self, p: Pixel, frame_index, line_index, pixel_ix, matching=True, color=None, translucent=False):
         collected = 0
         if matching:
             if frame_index == 0:
@@ -454,6 +454,8 @@ class tgrFile:
                 if color and next_pixel in player_cols[color].values():
                     break
                 collected += 1
+                if translucent and collected == 22:
+                    break
                 if collected == 30:
                     break
             return collected
@@ -522,7 +524,7 @@ class tgrFile:
             if verbose:
                 print(f'reading p:{p} at l:{line_index} c:{pixel_ix}')
             
-            if p.alpha == 0:        # Encode transparent pixels
+            if p == transparency:        # Encode transparent pixels
                 if verbose:
                     print(f'  chose flag 0b000')
                 run_length = self.look_ahead(p, frame_index, line_index, pixel_ix) + 1
@@ -554,7 +556,7 @@ class tgrFile:
                 ct_pixels += ct_shadow
                 
             elif p.alpha < 255:     #Encode translucent pixels                    
-                run_length = self.look_ahead(p, frame_index, line_index, pixel_ix) + 1
+                run_length = self.look_ahead(p, frame_index, line_index, pixel_ix, translucent=True) + 1
                 (r,g,b,a) = p.to_int()
                 if run_length == 1:
                     if verbose:
