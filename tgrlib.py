@@ -442,7 +442,7 @@ class tgrFile:
         with open(config_path, 'w') as c_fh:
             config.write(c_fh)
 
-    def look_ahead(self, p: Pixel, frame_index, line_index, pixel_ix, matching=True, color=None):
+    def look_ahead(self, p: Pixel, frame_index, line_index, pixel_ix, matching=True, color=None, translucent=False):
         collected = 0
         if matching:
             if frame_index == 0:
@@ -454,6 +454,8 @@ class tgrFile:
                 if color and next_pixel in player_cols[color].values():
                     break
                 collected += 1
+                if translucent and collected == 22:
+                    break
                 if collected == 30:
                     break
             return collected
@@ -554,7 +556,7 @@ class tgrFile:
                 ct_pixels += ct_shadow
                 
             elif p.alpha < 255:     #Encode translucent pixels                    
-                run_length = self.look_ahead(p, frame_index, line_index, pixel_ix) + 1
+                run_length = self.look_ahead(p, frame_index, line_index, pixel_ix, translucent=True) + 1
                 (r,g,b,a) = p.to_int()
                 if run_length == 1:
                     if verbose:
