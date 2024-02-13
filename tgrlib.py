@@ -770,8 +770,8 @@ class tgrFile:
     
     # Resizes input image to portrait dimensions
     def resize(self, size):
-        
-        inW, inH = self.framesizes[0][0:2]
+        print(self.imgs[0].size)
+        inW, inH = self.imgs[0].size
         if size == "small":     # rescale to 66 X 72 (internal size of portrait frame)
             outW, outH, frame_width = 66, 72, 4
         elif size == "large":   # rescale to 220 X 220 (internal size of large frame)
@@ -784,26 +784,18 @@ class tgrFile:
             crW = int(inH*outW/outH)    # set width equal to height, then scale to maintain AR
             crop = int((inW - crW) / 2)
             box = (crop ,0 ,inW - crop , inH)
-            if DEBUG:
-                print(f'Cropping width from {inW} to {crW} using bounding box {box}')
+            print(f'Cropping width from {inW} to {crW} using bounding box {box}')
         else:
             crH = int(inW*outH/outW)
             crop = int((inH - crH) / 2)
             box = (0 ,crop ,inW, inH - crop)
-            if DEBUG:
-                print(f'Cropping height from {inH} to {crH} using bounding box {box}')
-            
+            print(f'Cropping height from {inH} to {crH} using bounding box {box}')
+        
         cropped_im = self.imgs[0].crop(box)
-        
-        padding_im = Image.new('RGBA', (outW+frame_width,outH+frame_width))
-        
+        cropped_im.thumbnail((outW, outH))
+
+        padding_im = Image.new('RGBA', (outW+2*frame_width,outH+2*frame_width))
         padding_im.paste(cropped_im, (frame_width,frame_width))
-        
-        #cropped_im.save('crop.png')
-           
-        padding_im.thumbnail((outW, outH))
-        
-        padding_im.save('rescale.png')
         
         self.imgs[0] = padding_im
         
