@@ -65,6 +65,20 @@ def unpack(args: argparse.Namespace):
 def pack(args: argparse.Namespace):
     imagefile = tgrlib.tgrFile(args.source)
     config_path = args.config if args.config else f"{args.source}/sprite.ini"
+    
+    if args.portrait != None:
+        imagefile.resize(args.portrait)
+        #match args.portrait:
+# =============================================================================
+#             case 'small':
+#                 apply border
+#                 emboss edge
+#             case 'large':
+#                 apply border
+#                 shade edge
+#         save to tgr imagedata
+# =============================================================================
+    
     imagefile.load(config_path, args.no_crop)
     
     if args.output != '' and args.output != None:
@@ -79,6 +93,9 @@ def pack(args: argparse.Namespace):
         outfile = dest_path / filename
     else:
         outfile = imagefile.filename.stem + '.tgr'
+    
+    
+                
         
     data = b''
     for frame_index in range(0,len(imagefile.img_data)):
@@ -112,6 +129,7 @@ pack_parse.add_argument('-c', '--color', choices=range(1,12), default=None, type
 pack_parse.add_argument('-o', '--output', type=str, help='destination file for packed data')
 pack_parse.add_argument('--config', type=str, help='path to sprite config file')
 pack_parse.add_argument('--no-crop', action='store_true', help='Disable automatic cropping of transparent background pixels')
+pack_parse.add_argument('--portrait', choices=('large','small'), default=None, type=str, help='Specify the size of the portrait. Choose small for company/sidebar portraits, or large for campaign dialogue portraits')
 pack_parse.add_argument('source', type=str, help='path to file or directory to unpack')
 
 if __name__ == '__main__':
