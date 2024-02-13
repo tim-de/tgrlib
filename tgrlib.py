@@ -160,7 +160,7 @@ class tgrFile:
                 self.iff = ifflib.iff_file(self.filename)
             case '.PNG':
                 self.imgs = []
-                self.imgs[0]=Image.open(self.filename)
+                self.imgs.append(Image.open(self.filename))
             case '':
                 filelist = list(self.filename.glob('*'))
                 self.imgs = [None for _ in range(len(filelist))]
