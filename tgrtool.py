@@ -68,6 +68,8 @@ def pack(args: argparse.Namespace):
     
     if args.portrait != None:
         imagefile.resize(args.portrait)
+        imagefile.add_frame(args.portrait)
+        #imagefile.imgs[0].save('out.png')
         #match args.portrait:
 # =============================================================================
 #             case 'small':

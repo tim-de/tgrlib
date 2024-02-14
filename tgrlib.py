@@ -769,12 +769,12 @@ class tgrFile:
         return struct.pack('>4sI4s', chunk_name, length, file_type) + file_buffer
     
     # Resizes input image to portrait dimensions
-    def resize(self, size):
+    def resize(self, portrait_size):
         print(self.imgs[0].size)
         inW, inH = self.imgs[0].size
-        if size == "small":     # rescale to 66 X 72 (internal size of portrait frame)
+        if portrait_size == "small":     # rescale to 66 X 72 (internal size of portrait frame)
             outW, outH, frame_width = 66, 72, 4
-        elif size == "large":   # rescale to 220 X 220 (internal size of large frame)
+        elif portrait_size == "large":   # rescale to 220 X 220 (internal size of large frame)
             outW, outH, frame_width = 220, 220, 5
         else:
             print(f'{out_size} is not a valid size')
@@ -791,14 +791,18 @@ class tgrFile:
             box = (0 ,crop ,inW, inH - crop)
             print(f'Cropping height from {inH} to {crH} using bounding box {box}')
         
-        cropped_im = self.imgs[0].crop(box)
-        cropped_im.thumbnail((outW, outH))
+        cropped_im = self.imgs[0].crop(box).resize((outW, outH))
+        #cropped_im.thumbnail((outW, outH))
 
         padding_im = Image.new('RGBA', (outW+2*frame_width,outH+2*frame_width))
         padding_im.paste(cropped_im, (frame_width,frame_width))
         
         self.imgs[0] = padding_im
-        
+        return
+    
+    def add_frame(self, portrait_size):
+        frame = Image.open(f'{portrait_size}-portrait-frame.png')
+        self.imgs[0].paste(frame, mask=frame)
         return
         
 if __name__ == "__main__":
