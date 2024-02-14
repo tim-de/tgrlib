@@ -69,6 +69,63 @@ class Pixel:
         a5 = round(self.alpha / 255 * 31)
         
         return (r5, g6, b5, a5)
+    
+    def get_hsv(self):
+        r = self.red / 255
+        g = self.green / 255
+        b = self.blue / 255
+        
+        mx = max(r,g,b)
+        mn = min(r,g,b)
+        
+        h = mx
+        s = mx
+        v = mx
+        
+        d = mx - mn
+        s = 0 if mx == 0 else d / mx
+        
+        if mx == mn:
+            h = 0 #achromatic
+        else:
+            if mx == r:
+                h = (g - b) / d + (6 if g < b else 0)
+            elif mx == g:
+                h = (b - r) / d + 2
+            elif mx == b:
+                h = (r - g) / d + 4
+            h /= 6
+        
+        return (h,s,v)
+    
+    def set_hsv(self, h: int, s: int, v: int):
+        i = int(h * 6)
+        f = h * 6 - i
+        p = v * (1 - s)
+        q = v * (1 - f * s)
+        t = v * (1 - (1 - f) * s)
+        
+        if i % 6 == 0:
+            r, g, b = v, t, p
+        elif i % 6 == 1:
+            r, g, b = q, v, p
+        elif i % 6 == 2:
+            r, g, b = p, v, t
+        elif i % 6 == 3:
+            r, g, b = p, q, v
+        elif i % 6 == 4:
+            r, g, b = t, p, v
+        elif i % 6 == 5:
+            r, g, b = v, p, q
+        
+        self.red = round(r * 255)
+        self.green = round(g * 255)
+        self.blue = round(b * 255)
+        
+        return (self.red, self.green, self.blue)
+    
+    def values(self):
+        return (self.red, self.green, self.blue, self.alpha)
 
     def pack_to_bin(self, format: str ="RGB") -> bytes:
         match format:
@@ -329,7 +386,6 @@ class tgrFile:
                     #alpha = round(int.from_bytes(fh.read(1),byteorder=sys.byteorder) / 31 * 255) & 255# convert alpha channel from 5 bits to 8 bits
                     line_ix +=1
                     #print(f"alpha: {alpha}")
-                    # TODO use intensity to set luminosity of pixels
                     pixel = self.get_next_pixel(fh)
                     pixel.alpha = alpha
                     outbuf += [pixel for _ in range(run_length+increment)]
@@ -445,7 +501,7 @@ class tgrFile:
     def look_ahead(self, p: Pixel, frame_index, line_index, pixel_ix, matching=True, color=None, translucent=False):
         collected = 0
         if matching:
-            if frame_index == 0:
+            if verbose and frame_index == 0:
                 print(f'frame_index:{frame_index} (max:{len(self.img_data)}) pixel:{pixel_ix + collected + 1} (max:{self.framesizes[frame_index][0]}) total:{line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1} (max:{len(self.img_data[frame_index])}) size_data:{self.framesizes[frame_index]}')
             while (pixel_ix + collected + 1 < self.framesizes[frame_index][0]):
                 next_pixel = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1])
@@ -471,7 +527,7 @@ class tgrFile:
                     break
                 if color and this_pixel in player_cols[color].values():
                     break
-                if frame_index == 0:
+                if verbose and frame_index == 0:
                     print(f"\tLook_Ahead: pixel {this_pixel} at c:{pixel_ix + collected} doesn't match pixel {next_pixel} at c:{pixel_ix + collected + 1}")
                 collected += 1
                 if collected == 31:
@@ -770,7 +826,6 @@ class tgrFile:
     
     # Resizes input image to portrait dimensions
     def resize(self, portrait_size):
-        print(self.imgs[0].size)
         inW, inH = self.imgs[0].size
         if portrait_size == "small":     # rescale to 66 X 72 (internal size of portrait frame)
             outW, outH, frame_width = 66, 72, 4
@@ -791,19 +846,34 @@ class tgrFile:
             box = (0 ,crop ,inW, inH - crop)
             print(f'Cropping height from {inH} to {crH} using bounding box {box}')
         
+        print(f'Resizing to {outW}x{outH}')
         cropped_im = self.imgs[0].crop(box).resize((outW, outH))
-        #cropped_im.thumbnail((outW, outH))
-
+        
         padding_im = Image.new('RGBA', (outW+2*frame_width,outH+2*frame_width))
         padding_im.paste(cropped_im, (frame_width,frame_width))
         
         self.imgs[0] = padding_im
         return
     
-    def add_frame(self, portrait_size):
+    # Lightens edge pixels to make portrait "pop" in frame
+    def embossEdge(self, offset_x=4, offset_y=4):
+        imW, imH = self.imgs[0].size
+        for y in range(offset_y,imH-offset_y):
+            for x in range(offset_x, imW-offset_x):
+                if x in (offset_x, imW-(offset_x+1)) or y in (offset_y, imH-(offset_y+1)):
+                    p = Pixel(*self.imgs[0].getpixel((x, y))[:3])
+                    h, s, v = p.get_hsv()
+                    s = (s - 0.05 if s > 0.05 else 0)
+                    p.set_hsv(h, s, v)
+                    self.imgs[0].putpixel((x, y), p.values())
+        return
+    
+    def addPortraitFrame(self, portrait_size):
         frame = Image.open(f'{portrait_size}-portrait-frame.png')
         self.imgs[0].paste(frame, mask=frame)
         return
+    
+
         
 if __name__ == "__main__":
     pass

@@ -68,18 +68,10 @@ def pack(args: argparse.Namespace):
     
     if args.portrait != None:
         imagefile.resize(args.portrait)
-        imagefile.add_frame(args.portrait)
+        if args.portrait == 'small':
+            imagefile.embossEdge()
+        imagefile.addPortraitFrame(args.portrait)
         #imagefile.imgs[0].save('out.png')
-        #match args.portrait:
-# =============================================================================
-#             case 'small':
-#                 apply border
-#                 emboss edge
-#             case 'large':
-#                 apply border
-#                 shade edge
-#         save to tgr imagedata
-# =============================================================================
     
     imagefile.load(config_path, args.no_crop)
     
@@ -96,9 +88,6 @@ def pack(args: argparse.Namespace):
     else:
         outfile = imagefile.filename.stem + '.tgr'
     
-    
-                
-        
     data = b''
     for frame_index in range(0,len(imagefile.img_data)):
         imagefile.frameoffsets.append(len(data))
