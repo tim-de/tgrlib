@@ -68,10 +68,8 @@ def pack(args: argparse.Namespace):
     
     if args.portrait != None:
         imagefile.resize(args.portrait)
-        if args.portrait == 'small':
-            imagefile.embossEdge()
         imagefile.addPortraitFrame(args.portrait)
-        #imagefile.imgs[0].save('out.png')
+        #imagefile.imgs[0].save('out3.png')
     
     imagefile.load(config_path, args.no_crop)
     
