@@ -139,9 +139,9 @@ class Pixel:
 shadow = Pixel(0, 0, 0, 0x80)
 transparency = Pixel(0x00, 0x00, 0x00, 0x00)
 
-def load_player_colors(filename: str = "COLORS.INI"):
+def load_player_colors(filename: str = "data/COLORS.INI"):
     c_file = ConfigParser()
-    c_file.read(Path(__file__).resolve().with_name(filename))
+    c_file.read(Path(__file__).resolve().parent.joinpath(filename))
     player_cols = {}
     c_name_re = re.compile(r"color_(\d{1,2})_shade_(\d{1,2})")
     c_value_re = re.compile(r"\W*(\d{1,3}),(\d{1,3}),(\d{1,3})")
@@ -869,12 +869,12 @@ class tgrFile:
         return
     
     def addPortraitFrame(self, portrait_size):
-        frame = Image.open(f'{portrait_size}-portrait-frame.png')
+        frame = Image.open(f'data/{portrait_size}-portrait-frame.png')
         self.imgs[0].paste(frame, mask=frame)
         if portrait_size == 'large':
             # dtype=int16 allows for negatives rather than overflow
             hsv_im_data = np.array(self.imgs[0].convert('HSV'),dtype='int16')
-            mask_img = np.array(Image.open('large-portrait-shadow-mask.png'))
+            mask_img = np.array(Image.open('data/large-portrait-shadow-mask.png'))
             # Shadow intensity 1 is represented with yellow pixels
             mask_s1 = ((mask_img[:,:,:3] == [255,255,0]).all(axis=2)*(5*2.55)).astype('uint8')
             # Shadow intensity 2 is represented with red pixels
