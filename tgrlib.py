@@ -871,6 +871,27 @@ class tgrFile:
     def addPortraitFrame(self, portrait_size):
         frame = Image.open(f'{portrait_size}-portrait-frame.png')
         self.imgs[0].paste(frame, mask=frame)
+        if portrait_size == 'large':
+            # dtype=int16 allows for negatives rather than overflow
+            hsv_im_data = np.array(self.imgs[0].convert('HSV'),dtype='int16')
+            mask_img = np.array(Image.open('large-portrait-shadow-mask.png'))
+            # Shadow intensity 1 is represented with yellow pixels
+            mask_s1 = ((mask_img[:,:,:3] == [255,255,0]).all(axis=2)*(5*2.55)).astype('uint8')
+            # Shadow intensity 2 is represented with red pixels
+            mask_s2 = ((mask_img[:,:,:3] == [255,0,0]).all(axis=2)*(10*2.55)).astype('uint8')
+            # Shadow intensity 3 is represented with cyan pixels
+            mask_s3 = ((mask_img[:,:,:3] == [0,255,255]).all(axis=2)*(20*2.55)).astype('uint8')
+            # Shadow intensity 4 is represented with green pixels
+            mask_s4 = ((mask_img[:,:,:3] == [0,255,0]).all(axis=2)*(30*2.55)).astype('uint8')
+            # Shadow intensity 5 is represented with blue pixels
+            mask_s5 = ((mask_img[:,:,:3] == [0,0,255]).all(axis=2)*(40*2.55)).astype('uint8')
+            
+            full_mask = (mask_s1 + mask_s2 + mask_s3 + mask_s4 + mask_s5)
+            # Subtracts shadows from V channel
+            hsv_im_data[:,:,2] -= full_mask
+            # sets a minimum V of 6/255 ONLY for pixels in mask (true blacks elsewhere not affected)
+            hsv_im_data[:,:,2][full_mask.astype('?')] = hsv_im_data[:,:,2][full_mask.astype('?')].clip(min=6)
+            self.imgs[0] = Image.fromarray(hsv_im_data.astype('uint8'),mode='HSV').convert('RGBA')
         return
     
 

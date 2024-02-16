@@ -64,12 +64,14 @@ def unpack(args: argparse.Namespace):
 
 def pack(args: argparse.Namespace):
     imagefile = tgrlib.tgrFile(args.source)
+    print(imagefile.imgs[0].mode)
     config_path = args.config if args.config else f"{args.source}/sprite.ini"
     
     if args.portrait != None:
         imagefile.resize(args.portrait)
+        imagefile.imgs[0].save('large-test.png')
         imagefile.addPortraitFrame(args.portrait)
-        #imagefile.imgs[0].save('out3.png')
+        imagefile.imgs[0].save('out3.png')
     
     imagefile.load(config_path, args.no_crop)
     
