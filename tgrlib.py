@@ -70,60 +70,6 @@ class Pixel:
         
         return (r5, g6, b5, a5)
     
-    def get_hsv(self):
-        r = self.red / 255
-        g = self.green / 255
-        b = self.blue / 255
-        
-        mx = max(r,g,b)
-        mn = min(r,g,b)
-        
-        h = mx
-        s = mx
-        v = mx
-        
-        d = mx - mn
-        s = 0 if mx == 0 else d / mx
-        
-        if mx == mn:
-            h = 0 #achromatic
-        else:
-            if mx == r:
-                h = (g - b) / d + (6 if g < b else 0)
-            elif mx == g:
-                h = (b - r) / d + 2
-            elif mx == b:
-                h = (r - g) / d + 4
-            h /= 6
-        
-        return (h,s,v)
-    
-    def set_hsv(self, h: int, s: int, v: int):
-        i = int(h * 6)
-        f = h * 6 - i
-        p = v * (1 - s)
-        q = v * (1 - f * s)
-        t = v * (1 - (1 - f) * s)
-        
-        if i % 6 == 0:
-            r, g, b = v, t, p
-        elif i % 6 == 1:
-            r, g, b = q, v, p
-        elif i % 6 == 2:
-            r, g, b = p, v, t
-        elif i % 6 == 3:
-            r, g, b = p, q, v
-        elif i % 6 == 4:
-            r, g, b = t, p, v
-        elif i % 6 == 5:
-            r, g, b = v, p, q
-        
-        self.red = round(r * 255)
-        self.green = round(g * 255)
-        self.blue = round(b * 255)
-        
-        return (self.red, self.green, self.blue)
-    
     def values(self):
         return (self.red, self.green, self.blue, self.alpha)
 
@@ -854,20 +800,7 @@ class tgrFile:
         
         self.imgs[0] = padding_im
         return
-    
-    # Lightens edge pixels to make portrait "pop" in frame
-    def embossEdge(self, offset_x=4, offset_y=4):
-        imW, imH = self.imgs[0].size
-        for y in range(offset_y,imH-offset_y):
-            for x in range(offset_x, imW-offset_x):
-                if x in (offset_x, imW-(offset_x+1)) or y in (offset_y, imH-(offset_y+1)):
-                    p = Pixel(*self.imgs[0].getpixel((x, y))[:3])
-                    h, s, v = p.get_hsv()
-                    s = (s - 0.05 if s > 0.05 else 0)
-                    p.set_hsv(h, s, v)
-                    self.imgs[0].putpixel((x, y), p.values())
-        return
-    
+       
     def addPortraitFrame(self, portrait_size):
         frame = Image.open(f'data/{portrait_size}-portrait-frame.png')
         self.imgs[0].paste(frame, mask=frame)
