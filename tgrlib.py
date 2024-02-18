@@ -69,6 +69,9 @@ class Pixel:
         a5 = round(self.alpha / 255 * 31)
         
         return (r5, g6, b5, a5)
+    
+    def values(self):
+        return (self.red, self.green, self.blue, self.alpha)
 
     def pack_to_bin(self, format: str ="RGB") -> bytes:
         match format:
@@ -82,9 +85,9 @@ class Pixel:
 shadow = Pixel(0, 0, 0, 0x80)
 transparency = Pixel(0x00, 0x00, 0x00, 0x00)
 
-def load_player_colors(filename: str = "COLORS.INI"):
+def load_player_colors(filename: str = "data/COLORS.INI"):
     c_file = ConfigParser()
-    c_file.read(Path(__file__).resolve().with_name(filename))
+    c_file.read(Path(__file__).resolve().parent.joinpath(filename))
     player_cols = {}
     c_name_re = re.compile(r"color_(\d{1,2})_shade_(\d{1,2})")
     c_value_re = re.compile(r"\W*(\d{1,3}),(\d{1,3}),(\d{1,3})")
@@ -160,7 +163,7 @@ class tgrFile:
                 self.iff = ifflib.iff_file(self.filename)
             case '.PNG':
                 self.imgs = []
-                self.imgs[0]=Image.open(self.filename)
+                self.imgs.append(Image.open(self.filename))
             case '':
                 filelist = list(self.filename.glob('*'))
                 self.imgs = [None for _ in range(len(filelist))]
@@ -329,7 +332,6 @@ class tgrFile:
                     #alpha = round(int.from_bytes(fh.read(1),byteorder=sys.byteorder) / 31 * 255) & 255# convert alpha channel from 5 bits to 8 bits
                     line_ix +=1
                     #print(f"alpha: {alpha}")
-                    # TODO use intensity to set luminosity of pixels
                     pixel = self.get_next_pixel(fh)
                     pixel.alpha = alpha
                     outbuf += [pixel for _ in range(run_length+increment)]
@@ -445,7 +447,7 @@ class tgrFile:
     def look_ahead(self, p: Pixel, frame_index, line_index, pixel_ix, matching=True, color=None, translucent=False):
         collected = 0
         if matching:
-            if frame_index == 0:
+            if verbose and frame_index == 0:
                 print(f'frame_index:{frame_index} (max:{len(self.img_data)}) pixel:{pixel_ix + collected + 1} (max:{self.framesizes[frame_index][0]}) total:{line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1} (max:{len(self.img_data[frame_index])}) size_data:{self.framesizes[frame_index]}')
             while (pixel_ix + collected + 1 < self.framesizes[frame_index][0]):
                 next_pixel = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1])
@@ -471,7 +473,7 @@ class tgrFile:
                     break
                 if color and this_pixel in player_cols[color].values():
                     break
-                if frame_index == 0:
+                if verbose and frame_index == 0:
                     print(f"\tLook_Ahead: pixel {this_pixel} at c:{pixel_ix + collected} doesn't match pixel {next_pixel} at c:{pixel_ix + collected + 1}")
                 collected += 1
                 if collected == 31:
@@ -767,6 +769,65 @@ class tgrFile:
         length = len(file_buffer)
         file_type = b'TGAR'
         return struct.pack('>4sI4s', chunk_name, length, file_type) + file_buffer
+    
+    # Resizes input image to portrait dimensions
+    def resize(self, portrait_size):
+        inW, inH = self.imgs[0].size
+        if portrait_size == "small":     # rescale to 66 X 72 (internal size of portrait frame)
+            outW, outH, frame_width = 66, 72, 4
+        elif portrait_size == "large":   # rescale to 220 X 220 (internal size of large frame)
+            outW, outH, frame_width = 220, 220, 5
+        else:
+            print(f'{out_size} is not a valid size')
+            sys.exit()
+        
+        if inH < (inW * outH / outW):   # if height less than width * inverse scaling factor
+            crW = int(inH*outW/outH)    # set width equal to height, then scale to maintain AR
+            crop = int((inW - crW) / 2)
+            box = (crop ,0 ,inW - crop , inH)
+            print(f'Cropping width from {inW} to {crW} using bounding box {box}')
+        else:
+            crH = int(inW*outH/outW)
+            crop = int((inH - crH) / 2)
+            box = (0 ,crop ,inW, inH - crop)
+            print(f'Cropping height from {inH} to {crH} using bounding box {box}')
+        
+        print(f'Resizing to {outW}x{outH}')
+        cropped_im = self.imgs[0].crop(box).resize((outW, outH))
+        
+        padding_im = Image.new('RGBA', (outW+2*frame_width,outH+2*frame_width))
+        padding_im.paste(cropped_im, (frame_width,frame_width))
+        
+        self.imgs[0] = padding_im
+        return
+       
+    def addPortraitFrame(self, portrait_size):
+        frame = Image.open(f'data/{portrait_size}-portrait-frame.png')
+        self.imgs[0].paste(frame, mask=frame)
+        if portrait_size == 'large':
+            # dtype=int16 allows for negatives rather than overflow
+            hsv_im_data = np.array(self.imgs[0].convert('HSV'),dtype='int16')
+            mask_img = np.array(Image.open('data/large-portrait-shadow-mask.png'))
+            # Shadow intensity 1 is represented with yellow pixels
+            mask_s1 = ((mask_img[:,:,:3] == [255,255,0]).all(axis=2)*(5*2.55)).astype('uint8')
+            # Shadow intensity 2 is represented with red pixels
+            mask_s2 = ((mask_img[:,:,:3] == [255,0,0]).all(axis=2)*(10*2.55)).astype('uint8')
+            # Shadow intensity 3 is represented with cyan pixels
+            mask_s3 = ((mask_img[:,:,:3] == [0,255,255]).all(axis=2)*(20*2.55)).astype('uint8')
+            # Shadow intensity 4 is represented with green pixels
+            mask_s4 = ((mask_img[:,:,:3] == [0,255,0]).all(axis=2)*(30*2.55)).astype('uint8')
+            # Shadow intensity 5 is represented with blue pixels
+            mask_s5 = ((mask_img[:,:,:3] == [0,0,255]).all(axis=2)*(40*2.55)).astype('uint8')
+            
+            full_mask = (mask_s1 + mask_s2 + mask_s3 + mask_s4 + mask_s5)
+            # Subtracts shadows from V channel
+            hsv_im_data[:,:,2] -= full_mask
+            # sets a minimum V of 6/255 ONLY for pixels in mask (true blacks elsewhere not affected)
+            hsv_im_data[:,:,2][full_mask.astype('?')] = hsv_im_data[:,:,2][full_mask.astype('?')].clip(min=6)
+            self.imgs[0] = Image.fromarray(hsv_im_data.astype('uint8'),mode='HSV').convert('RGBA')
+        return
+    
+
         
 if __name__ == "__main__":
     pass
