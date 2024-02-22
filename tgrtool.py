@@ -122,5 +122,20 @@ pack_parse.add_argument('--portrait', choices=('large','small'), default=None, t
 pack_parse.add_argument('source', type=str, help='path to file or directory to unpack')
 
 if __name__ == '__main__':
-    args = main_parse.parse_args()
-    args.func(args)
+    if tgrlib.is_exe:
+        print('Welcome to TGR Tool. Please enter a command, or type "--help" for help, or "exit" to exit')
+        
+        while True:
+            command = input('tgrtool > ')
+        
+            if command.lower() == 'exit':
+                print('Exiting')
+                exit(0)
+            try:
+                args = main_parse.parse_args(command.split(' '))
+                args.func(args)
+            except SystemExit:
+                print('')
+    else:
+        args = main_parse.parse_args()
+        args.func(args)

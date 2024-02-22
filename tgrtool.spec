@@ -22,7 +22,7 @@ a = Analysis(
 )
 
 splash = Splash(
-	'image.png',
+	'.\\data\\splash-screen.png',
 	binaries=a.binaries,
 	datas=a.datas,
 	text_pos=(10, 50),

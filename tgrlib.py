@@ -13,8 +13,18 @@ from PIL import Image
 from configparser import ConfigParser
 from collections import OrderedDict
 
+# check if running as a PyInstaller exe
+try:
+    sys._MEIPASS
+    is_exe = True
+except Exception:
+    is_exe = False
+
+is_exe=True
+
 verbose = False
 frame_number_re = re.compile(r"fram_(\d{1,4})")
+
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
