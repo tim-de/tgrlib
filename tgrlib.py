@@ -15,12 +15,13 @@ from collections import OrderedDict
 
 # check if running as a PyInstaller exe
 try:
-    sys._MEIPASS
+    import pyi_splash
     is_exe = True
+    pyi_splash.close()
 except Exception:
     is_exe = False
 
-is_exe=True
+#is_exe=True
 
 verbose = False
 frame_number_re = re.compile(r"fram_(\d{1,4})")
