@@ -34,17 +34,8 @@ def resource_path(relative_path):
         base_path = Path(sys._MEIPASS)
     except Exception:
         base_path = Path('.').resolve(strict=True)
-    print(f'returning {base_path / relative_path}')
+    #print(f'returning {base_path / relative_path}')
     return (base_path / relative_path).resolve()
-
-print('Checking path for data files...')
-cwd = resource_path('.')
-print(f'CWD: {cwd}')
-print(*cwd.iterdir(), sep="\n")
-if (cwd / 'data').exists():
-    print('\nFound data folder, printing contents:')
-    print(*(cwd / 'data').iterdir(), sep="\n")
-    print('')
 
 def read_line_length(in_fh: io.BufferedReader):
     rawlen = in_fh.read(2)
@@ -196,6 +187,7 @@ class tgrFile:
             case '':
                 filelist = list(self.filename.glob('*'))
                 self.imgs = [None for _ in range(len(filelist))]
+                print(f'Loading files from {self.filename.resolve()}')
                 for f in filelist:
                     match f.suffix.upper():
                         case ".PNG":
@@ -206,7 +198,7 @@ class tgrFile:
                             else:
                                 print(f"Failed to find fram number from {f.stem}")
                                 exit(1)
-                            print(f, fram_number)
+                            print('>', f, fram_number)
                             # Maybe move opening the file into the load function
                             self.imgs[fram_number] = Image.open(f)
                         case '.INI':
@@ -267,7 +259,7 @@ class tgrFile:
              self.offset_flag) = struct.unpack("xBBx", in_fh.read(4))
             self.size = struct.unpack("HH", in_fh.read(4))
             self.hotspot = struct.unpack("HH", in_fh.read(4))
-            print(self.size)
+            print(f'Image size: {self.size}')
             
             #print(self.offset_flag)
             self.indexed_colour = index_mode & 0x7f == 0x1a
@@ -296,7 +288,7 @@ class tgrFile:
         with open(self.filename, "rb") as in_fh:
             in_fh.seek(palt.data_offset)
             (count,) = struct.unpack("<Hxx", in_fh.read(4))
-            print(count)
+            print(f'Colors in Palette: {count}')
             for _ in range(count):
                 raw_pixel = in_fh.read(2)
                 if len(raw_pixel) < 2:
@@ -422,7 +414,7 @@ class tgrFile:
                 self.animations[anim_number] = (int(config[f'Animation{anim_number}']['StartFrame']), int(config[f'Animation{anim_number}']['FrameCount']), int(config[f'Animation{anim_number}']['AnimationCount']))
         
         self.animations = self.animations[:self.anim_count]
-        print(self.anim_count, self.animations)
+        # print(self.anim_count, self.animations)
             
         
     
@@ -562,8 +554,8 @@ class tgrFile:
                 if pixel_ix == 0:   # If there are no preceding opaque pixels
                     offset = run_length
                     pixel_ix += run_length
-                    if frame_index == 0:
-                        print(f'f:{frame_index:>3} l:{line_index:>3} offset:{offset}')
+                    #if frame_index == 0:
+                    #    print(f'f:{frame_index:>3} l:{line_index:>3} offset:{offset}')
                 elif pixel_ix + run_length >= self.framesizes[frame_index][0]:
                     break
                 else:
@@ -654,9 +646,9 @@ class tgrFile:
                         ct_pixels += run_length
                         
                     elif color and p in player_cols[color].values():
-                        if frame_index == 0:
-                            print(f'matched pixel {p} in color list {color}')
                         if verbose:
+                            if frame_index == 0:
+                                print(f'matched pixel {p} in color list {color}')
                             printf('  chose flag 0b110')
                         flag = 0b110 << 5
                         color_index = list(player_cols[color].keys())[list(player_cols[color].values()).index(p)]
@@ -664,7 +656,7 @@ class tgrFile:
                         outbuf += struct.pack('B', header)
                         pixel_ix += 1
                         ct_pixels += 1
-                        if frame_index == 0:
+                        if verbose and frame_index == 0:
                             print(f'  packed {header:02X}, flag {flag}, index {color_index}')
                     
                     else:
@@ -730,8 +722,7 @@ class tgrFile:
         
         if self.anim_count % 2 == 0:
             data += b'\x00' * 2
-        
-        print(data)
+
         return data
     
     def encodeHeader(self, frame_buffer: bytes):
@@ -751,7 +742,7 @@ class tgrFile:
         
         animations = self.packAnimations()
         frame_sizes = self.packFrameSizes(animations)
-        print(frame_sizes[:16])
+        #print(frame_sizes[:16])
         
 # =============================================================================
 #         out_text = (f'version:{type(version)}\n'+
