@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import sys
 
 block_cipher = None
 
@@ -8,7 +9,7 @@ a = Analysis(
     ['tgrtool.py'],
     pathex=[],
     binaries=[],
-    datas=[('.\\COLORS.INI', '.')],
+    datas=[('.\\data', 'data')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -19,12 +20,26 @@ a = Analysis(
     cipher=block_cipher,
     noarchive=False,
 )
+
+splash = Splash(
+	'.\\data\\splash-screen.png',
+	binaries=a.binaries,
+	datas=a.datas,
+	text_pos=(10, 50),
+	text_size=12,
+	text_color='black')
+	
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
+	# Static link the Visual C++ Redistributable DLLs if on Windows
+	a.binaries + [('msvcp100.dll', 'C:\\Windows\\System32\\msvcp100.dll', 'BINARY'),
+				  ('msvcr100.dll', 'C:\\Windows\\System32\\msvcr100.dll', 'BINARY')]
+    if sys.platform == 'win32' else a.binaries,
+    splash,
+    splash.binaries,
     a.zipfiles,
     a.datas,
     [],
@@ -36,6 +51,7 @@ exe = EXE(
     upx_exclude=[],
     runtime_tmpdir=None,
     console=True,
+	icon='.\\data\\app-icon.ico',
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

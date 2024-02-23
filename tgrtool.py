@@ -96,6 +96,13 @@ def pack(args: argparse.Namespace):
     with open(outfile ,'wb') as fh_out:
         fh_out.write(data)
 
+# from https://stackoverflow.com/a/34256516
+# Allows filepaths with spaces to be parsed correctly
+class MyAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, ' '.join(values))
+
+
 ## Define parsers
 main_parse = argparse.ArgumentParser(prog="tgrtool")
 
@@ -110,7 +117,7 @@ unpack_parse.add_argument('--single-frame', default=-1, type=int, help='extract 
 unpack_parse.add_argument('--fx-error-fix', action='store_true', help='use this if non-unit .TGR files have multicolored horizontal stripes in the output')
 unpack_parse.add_argument('-o', '--output', type=str, default=None, help='destination directory for unpacked files')
 unpack_parse.add_argument('--config', type=str, help="path to write sprite config file")
-unpack_parse.add_argument('source', type=str, help='path to target tgr file')
+unpack_parse.add_argument('source', type=str, help='path to target tgr file', nargs='+', action=MyAction)
 
 pack_parse = sub_parsers.add_parser("pack")
 pack_parse.set_defaults(func=pack)
@@ -119,8 +126,23 @@ pack_parse.add_argument('-o', '--output', type=str, help='destination file for p
 pack_parse.add_argument('--config', type=str, help='path to sprite config file')
 pack_parse.add_argument('--no-crop', action='store_true', help='Disable automatic cropping of transparent background pixels')
 pack_parse.add_argument('--portrait', choices=('large','small'), default=None, type=str, help='Specify the size of the portrait. Choose small for company/sidebar portraits, or large for campaign dialogue portraits')
-pack_parse.add_argument('source', type=str, help='path to file or directory to unpack')
+pack_parse.add_argument('source', type=str, help='path to file or directory to unpack', nargs='+', action=MyAction)
 
 if __name__ == '__main__':
-    args = main_parse.parse_args()
-    args.func(args)
+    if tgrlib.is_exe:
+        print('Welcome to TGR Tool. Please enter a command, or type "--help" for help, or "exit" to exit')
+        
+        while True:
+            command = input('tgrtool > ')
+        
+            if command.lower() == 'exit':
+                print('Exiting')
+                break
+            try:              
+                args = main_parse.parse_args(command.split(' '))
+                args.func(args)
+            except SystemExit:
+                print('')
+    else:
+        args = main_parse.parse_args()
+        args.func(args)

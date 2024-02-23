@@ -4,18 +4,38 @@ import ifflib
 import struct
 import io
 import re
-#import sys
+import sys
 import typing
 import numpy as np
 from dataclasses import dataclass
-import re
 from pathlib import Path
 from PIL import Image
 from configparser import ConfigParser
 from collections import OrderedDict
 
+# check if running as a PyInstaller exe
+try:
+    import pyi_splash
+    is_exe = True
+    pyi_splash.close()
+except Exception:
+    is_exe = False
+
+#is_exe=True
+
 verbose = False
 frame_number_re = re.compile(r"fram_(\d{1,4})")
+
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = Path(sys._MEIPASS)
+    except Exception:
+        base_path = Path('.').resolve(strict=True)
+    #print(f'returning {base_path / relative_path}')
+    return (base_path / relative_path).resolve()
 
 def read_line_length(in_fh: io.BufferedReader):
     rawlen = in_fh.read(2)
@@ -87,7 +107,7 @@ transparency = Pixel(0x00, 0x00, 0x00, 0x00)
 
 def load_player_colors(filename: str = "data/COLORS.INI"):
     c_file = ConfigParser()
-    c_file.read(Path(__file__).resolve().parent.joinpath(filename))
+    c_file.read(resource_path(filename))
     player_cols = {}
     c_name_re = re.compile(r"color_(\d{1,2})_shade_(\d{1,2})")
     c_value_re = re.compile(r"\W*(\d{1,3}),(\d{1,3}),(\d{1,3})")
@@ -167,6 +187,7 @@ class tgrFile:
             case '':
                 filelist = list(self.filename.glob('*'))
                 self.imgs = [None for _ in range(len(filelist))]
+                print(f'Loading files from {self.filename.resolve()}')
                 for f in filelist:
                     match f.suffix.upper():
                         case ".PNG":
@@ -177,7 +198,7 @@ class tgrFile:
                             else:
                                 print(f"Failed to find fram number from {f.stem}")
                                 exit(1)
-                            print(f, fram_number)
+                            print('>', f, fram_number)
                             # Maybe move opening the file into the load function
                             self.imgs[fram_number] = Image.open(f)
                         case '.INI':
@@ -238,7 +259,7 @@ class tgrFile:
              self.offset_flag) = struct.unpack("xBBx", in_fh.read(4))
             self.size = struct.unpack("HH", in_fh.read(4))
             self.hotspot = struct.unpack("HH", in_fh.read(4))
-            print(self.size)
+            print(f'Image size: {self.size}')
             
             #print(self.offset_flag)
             self.indexed_colour = index_mode & 0x7f == 0x1a
@@ -267,7 +288,7 @@ class tgrFile:
         with open(self.filename, "rb") as in_fh:
             in_fh.seek(palt.data_offset)
             (count,) = struct.unpack("<Hxx", in_fh.read(4))
-            print(count)
+            print(f'Colors in Palette: {count}')
             for _ in range(count):
                 raw_pixel = in_fh.read(2)
                 if len(raw_pixel) < 2:
@@ -393,7 +414,7 @@ class tgrFile:
                 self.animations[anim_number] = (int(config[f'Animation{anim_number}']['StartFrame']), int(config[f'Animation{anim_number}']['FrameCount']), int(config[f'Animation{anim_number}']['AnimationCount']))
         
         self.animations = self.animations[:self.anim_count]
-        print(self.anim_count, self.animations)
+        # print(self.anim_count, self.animations)
             
         
     
@@ -533,8 +554,8 @@ class tgrFile:
                 if pixel_ix == 0:   # If there are no preceding opaque pixels
                     offset = run_length
                     pixel_ix += run_length
-                    if frame_index == 0:
-                        print(f'f:{frame_index:>3} l:{line_index:>3} offset:{offset}')
+                    #if frame_index == 0:
+                    #    print(f'f:{frame_index:>3} l:{line_index:>3} offset:{offset}')
                 elif pixel_ix + run_length >= self.framesizes[frame_index][0]:
                     break
                 else:
@@ -625,9 +646,9 @@ class tgrFile:
                         ct_pixels += run_length
                         
                     elif color and p in player_cols[color].values():
-                        if frame_index == 0:
-                            print(f'matched pixel {p} in color list {color}')
                         if verbose:
+                            if frame_index == 0:
+                                print(f'matched pixel {p} in color list {color}')
                             printf('  chose flag 0b110')
                         flag = 0b110 << 5
                         color_index = list(player_cols[color].keys())[list(player_cols[color].values()).index(p)]
@@ -635,7 +656,7 @@ class tgrFile:
                         outbuf += struct.pack('B', header)
                         pixel_ix += 1
                         ct_pixels += 1
-                        if frame_index == 0:
+                        if verbose and frame_index == 0:
                             print(f'  packed {header:02X}, flag {flag}, index {color_index}')
                     
                     else:
@@ -701,8 +722,7 @@ class tgrFile:
         
         if self.anim_count % 2 == 0:
             data += b'\x00' * 2
-        
-        print(data)
+
         return data
     
     def encodeHeader(self, frame_buffer: bytes):
@@ -722,23 +742,25 @@ class tgrFile:
         
         animations = self.packAnimations()
         frame_sizes = self.packFrameSizes(animations)
-        print(frame_sizes[:16])
+        #print(frame_sizes[:16])
         
-        out_text = (f'version:{type(version)}\n'+
-                    f'frame_count:{type(frame_count)}\n'+
-                    f'self.bits_per_px:{type(self.bits_per_px)}\n'+
-                    f'index_mode:{type(index_mode)}\n'+
-                    f'offset_flag:{type(offset_flag)}\n'+
-                    f'size_x:{type(self.size[0])}\n'+
-                    f'size_y:{type(self.size[1])}\n'+
-                    f'hs_x:{type(hs_x)}:{hs_x}\n'+
-                    f'hs_y:{type(hs_y)}:{hs_y}\n'+
-                    f'self.bounding_box[0]:{type(self.bounding_box[0])}\n'+
-                    f'self.bounding_box[1]:{type(self.bounding_box[1])}\n'+
-                    f'self.bounding_box[2]:{type(self.bounding_box[2])}\n'+
-                    f'self.bounding_box[3]:{type(self.bounding_box[3])}\n'+
-                    f'palette_offset:{type(palette_offset)}\n'
-                    )
+# =============================================================================
+#         out_text = (f'version:{type(version)}\n'+
+#                     f'frame_count:{type(frame_count)}\n'+
+#                     f'self.bits_per_px:{type(self.bits_per_px)}\n'+
+#                     f'index_mode:{type(index_mode)}\n'+
+#                     f'offset_flag:{type(offset_flag)}\n'+
+#                     f'size_x:{type(self.size[0])}\n'+
+#                     f'size_y:{type(self.size[1])}\n'+
+#                     f'hs_x:{type(hs_x)}:{hs_x}\n'+
+#                     f'hs_y:{type(hs_y)}:{hs_y}\n'+
+#                     f'self.bounding_box[0]:{type(self.bounding_box[0])}\n'+
+#                     f'self.bounding_box[1]:{type(self.bounding_box[1])}\n'+
+#                     f'self.bounding_box[2]:{type(self.bounding_box[2])}\n'+
+#                     f'self.bounding_box[3]:{type(self.bounding_box[3])}\n'+
+#                     f'palette_offset:{type(palette_offset)}\n'
+#                     )
+# =============================================================================
         #print(out_text)
         
         hedr_buf = struct.pack('I12HIII',
@@ -802,12 +824,12 @@ class tgrFile:
         return
        
     def addPortraitFrame(self, portrait_size):
-        frame = Image.open(f'data/{portrait_size}-portrait-frame.png')
+        frame = Image.open(resource_path(f'data/{portrait_size}-portrait-frame.png'))
         self.imgs[0].paste(frame, mask=frame)
         if portrait_size == 'large':
             # dtype=int16 allows for negatives rather than overflow
             hsv_im_data = np.array(self.imgs[0].convert('HSV'),dtype='int16')
-            mask_img = np.array(Image.open('data/large-portrait-shadow-mask.png'))
+            mask_img = np.array(Image.open(resource_path('data/large-portrait-shadow-mask.png')))
             # Shadow intensity 1 is represented with yellow pixels
             mask_s1 = ((mask_img[:,:,:3] == [255,255,0]).all(axis=2)*(5*2.55)).astype('uint8')
             # Shadow intensity 2 is represented with red pixels
