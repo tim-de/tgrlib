@@ -1,0 +1,291 @@
+//------------------------------------------------
+//--- 010 Editor v14.0 Binary Template
+//
+//      File: 
+//   Authors: 
+//   Version: 
+//   Purpose: 
+//  Category: 
+// File Mask: 
+//  ID Bytes: 
+//   History: 
+//------------------------------------------------
+
+// This Template will work with most TGRs, with or without a palette
+
+LittleEndian();
+BitfieldDisablePadding();
+ThemeAutoScaleColors(false);
+
+typedef struct {
+    uint16 ulx;
+    uint16 uly;
+    uint16 lrx;
+    uint16 lry;   
+    uint32 offset;
+} FRAME_SIZE;
+
+typedef struct {
+    uint16 start_frame;
+    uint16 frame_count;
+    uint16 animation_count; // # of camera angles for the animation
+} ANIMATION;
+
+// Represents an 'immediate color' pixel (16 bits representing color)
+typedef struct {
+    LittleEndian();
+    int blue : 5;
+    int green : 6;
+    int red : 5;
+} IMM_PIXEL <optimize=false,bgcolor=PixelColor,comment=ColorComment>;
+
+// Represents an 'indexed color' pixel (8 bits representing palette index)   
+typedef struct {
+    ubyte index;
+} IND_PIXEL;
+
+// Represents two 'player color' pixels, packed into one byte. 
+// Perform (pixelN << 1) | 1 to calculate the actual index value
+typedef struct {
+    LittleEndian();
+    int pixel2 : 4;
+    int pixel1 : 4;
+} PLYR_PIXEL <optimize=false,bgcolor=0x0000FF>;
+
+int64 PixelColor( IMM_PIXEL &p ) {
+    local uint64 r8 = (double)p.red / 31.0 * 255.0;
+    local uint64 g8 = (double)p.green / 63.0 * 255.0;
+    local uint64 b8 = (double)p.blue / 31.0 * 255.0;
+    return (b8 << 16 | g8 << 8 | r8);
+    //return 0xFFFFFF;
+}
+
+string ColorComment ( IMM_PIXEL &p ) {
+    local double r8 = (double)p.red / 31.0 * 255.0;
+    if ( r8 > (Floor(r8) + 0.5) ) {
+        r8 = Ceil(r8);
+    } else {
+        r8 = Floor(r8);
+    }
+    local double g8 = (double)p.green / 63.0 * 255.0;
+    if ( g8 > (Floor(g8) + 0.5) ) {
+        g8 = Ceil(g8);
+    } else {
+        g8 = Floor(g8);
+    }
+    local double b8 = (double)p.blue / 31.0 * 255.0;
+    if ( b8 > (Floor(b8) + 0.5) ) {
+        b8 = Ceil(b8);
+    } else {
+        b8 = Floor(b8);
+    }
+    return Str("r:%d g:%d b:%d", r8, g8, b8);
+}
+
+typedef struct {
+    BigEndian();
+    //local uchar run_header = ReadUByte() >> 5;
+    switch(ReadUByte() >> 5) {
+        case 0b000:     // Transparent spacing pixels
+            int run_type : 3;
+            int ct_transparent_pixels : 5;
+            break;
+        case 0b001:     // Run length encoded run of pixels
+            int run_type : 3;
+            int run_length : 5;
+            if (hedr.bit_depth == 8) {
+                IND_PIXEL ind_pixel;
+            } else {
+                IMM_PIXEL pixel;
+            }
+            break;
+        case 0b010:     // Unencoded run of pixels
+            int run_type : 3;
+            int run_length : 5;
+            if (hedr.bit_depth == 8) {
+                IND_PIXEL ind_pixels[run_length];
+            } else {
+                IMM_PIXEL pixels[run_length];
+            }
+            break;
+        case 0b011:     // Run length encoded run of translucent/glowing colored pixels
+            int run_type : 3;
+            int run_length : 5;
+            ubyte alpha;
+            if (hedr.bit_depth == 8) {
+                IND_PIXEL ind_pixel;
+            } else {
+                IMM_PIXEL pixel;
+            }
+            break;
+        case 0b100:     // Sets the brightness of a single translucent pixel
+            int run_type : 3;
+            int alpha : 5;
+            if (hedr.bit_depth == 8) {
+                IND_PIXEL ind_pixel;
+            } else {
+                IMM_PIXEL pixel;
+            }
+            break;
+        case 0b101:     // Shadow pixels in sprites
+            int run_type : 3;
+            int ct_shadow_pixels : 5;
+            break;
+        case 0b110:     // One Player Color pixel
+            int run_type : 3;
+            int player_color : 5;
+            break;
+        case 0b111:     // Run Length encoded run of player color pixels
+            local ubyte flag = ReadByte();
+            if ((flag & 0b00011111) > 0b11011) {
+                int run_type : 3;
+                int alpha : 5;
+                PLYR_PIXEL player_pixel;
+            } else {
+                int run_type : 3;
+                int run_length : 5;                
+                PLYR_PIXEL player_pixels[(run_length + 1) >> 1];  // Since each byte holds 2 pixels, divide taking the ceiling 
+            }
+            break;
+        default:
+            ubyte unknown_flag;
+            break;
+    }
+} RUN;
+
+// LINE
+typedef struct {
+    // line_length is used as a duplicate array to grab 2 bytes 
+    // if the line starts 8X, and to just grab one otherwise
+    local int ct_header_bytes = 3;
+    
+    ubyte line_length;
+    local int total_line_length = line_length;
+    if ((line_length >> 7) == 1) {  
+        ubyte line_length; // length of line in bytes, including header
+        total_line_length = ((line_length[0] & 0b01111111) << 8) | line_length[1];  // combines both bytes and strips the flag bit
+        ct_header_bytes += 1;
+    }
+    
+    ubyte offset;
+    local int total_offset = offset;
+    if ((offset >> 7) == 1) {  
+        ubyte offset; // offset to start of line data, if there are transparent/padding pixels
+        total_offset = ((offset[0] & 0b01111111) << 8) | offset[1];  // combines both bytes and strips the flag bit
+        ct_header_bytes += 1;
+    }
+    
+    ubyte ct_pixels;
+    local int total_ct_pixels = ct_pixels;
+    if ((ct_pixels >> 7) == 1) {  
+        ubyte ct_pixels; // number of pixels in line
+        total_ct_pixels = ((ct_pixels[0] & 0b01111111) << 8) | ct_pixels[1];  // combines both bytes and strips the flag bit
+        ct_header_bytes += 1;
+    }
+    
+    local int bytes_used = ct_header_bytes;
+    while (bytes_used < total_line_length) {
+        RUN run;
+        bytes_used += sizeof(run);
+    }
+    
+    
+    
+    //ubyte line_data[total_line_length - ct_header_bytes]; // (-ct_header_bytes) to account for size of header
+} LINE <optimize=false>;
+
+
+typedef struct {
+    char chunk_name[4];
+    BigEndian();
+    uint32 chunk_length; //distance from end of chunk_length to next FRAM
+    LittleEndian();
+    local int bytes_used = 0;
+    while (bytes_used < chunk_length) {
+        if (chunk_length - bytes_used < 4) {
+            ubyte padding[chunk_length - bytes_used];
+            bytes_used += sizeof(padding);
+        } else {
+            LINE line;
+            bytes_used += sizeof(line);
+        }
+    }
+} FRAM <optimize=false>;
+
+typedef struct {
+    char chunk_name[4];
+    BigEndian();
+    uint32 chunk_length;
+    LittleEndian();
+    uint16 palette_size;
+    ubyte unknown[2];  // Palette size can only be 256, so these bytes are for something else
+    IMM_PIXEL pixels[palette_size] <optimize=false>;
+} PALT;
+
+
+struct FORM {
+    char chunk_name[4];  // Always FORM
+    BigEndian();
+    int32 length;  //length in bytes from start of HEDR to end of file
+    LittleEndian();
+    char file_type[4];  // Always TGAR
+} form;
+
+struct HEDR {
+    char chunk_name[4];
+    BigEndian();
+    uint32 chunk_length;
+    local int start_pos = FTell();
+    LittleEndian();
+    uint32 version;
+    uint16 frame_count;
+    ubyte bit_depth;
+    ubyte unknown0;
+    uint16 index_mode;
+    uint16 offset_flag;
+    
+    struct SIZE {
+        uint16 x;
+        uint16 y;
+    } size;
+    
+    struct HOTSPOT {
+        uint16 x;
+        uint16 y;
+    } hotspot;
+    
+    struct BOUNDING_BOX {
+        uint16 x_min;
+        uint16 y_min;
+        uint16 x_max;
+        uint16 y_max;
+    } bounding_box;
+    
+    byte unknown1[8]; // seems to contain max frame size
+    
+    uint32 offset_palette;  // number of bytes from start of file to begining of palette_size (9th byte of PALT)
+    
+    FRAME_SIZE frame_sizes[frame_count];
+    
+    uint16 anim_count;
+    ANIMATION anim[anim_count];
+    
+    //if (hedr.anim_count % 2 == 0) {
+    //    ubyte padding[2];
+    //}
+    local uint32 curr_pos = FTell();
+    if (curr_pos < start_pos + chunk_length) {
+        ubyte padding[start_pos + chunk_length - curr_pos];
+    }
+} hedr;
+
+/*if (hedr.anim_count % 2 == 0) {
+        ubyte padding[2];
+    }
+*/
+
+if (hedr.bit_depth == 8) {
+    PALT palt;
+}
+
+FRAM frames[hedr.frame_count];
