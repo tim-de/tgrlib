@@ -13,6 +13,7 @@ from PIL import Image
 from configparser import ConfigParser
 from collections import OrderedDict
 
+<<<<<<< HEAD
 # check if running as a PyInstaller exe
 try:
     import pyi_splash
@@ -24,6 +25,9 @@ except Exception:
 #is_exe=True
 
 verbose = False
+=======
+verbose = False
+>>>>>>> b1bbf8e (Added support for alpha player pixels when unpacking)
 frame_number_re = re.compile(r"fram_(\d{1,4})")
 
 
@@ -372,19 +376,33 @@ class tgrFile:
                     outbuf.append(player_cols[color][run_length])
                     pixel_ix += 1
                 case 0b111:
-                    read_length = (run_length + 1) // 2
-                    color_index = fh.read(read_length)
-                    line_ix += read_length
-                    
-                    for i, b in enumerate(color_index):
-                        # splits the byte into two 4bit sections, shifts left 1bit, and sets least sig to 1
-                        # then uses as index for player color value
-                        outbuf.append(player_cols[color][((b >> 3) & 0b11111) | 0b1])
+                    # check if run or single translucent
+                    if verbose:
+                        print(f'{line_index},{pixel_ix} ({line_ix}): reading 0b111 with run_length {run_length}')
+                    if run_length > 27:
+                        byte = fh.read(1)[0]
+                        alpha = byte & 31
+                        color_index = (byte >> 5) | (run_length & 3)
+                        # create new pixel object to avoid shallow copying
+                        new_pixel = Pixel(*player_cols[color][color_index].values())
+                        new_pixel.alpha = round(alpha / 31 * 255)
+                        outbuf.append(new_pixel)
                         pixel_ix += 1
-                        # Don't append trailing null padding on odd run lengths
-                        if (run_length % 2 == 0) or (i < len(color_index) - 1):
-                            outbuf.append(player_cols[color][((b << 1) & 0b11111) | 0b1])
-                            pixel_ix += 1                    
+                        line_ix += 1
+                    else:
+                        read_length = (run_length + 1) // 2
+                        color_index = fh.read(read_length)
+                        line_ix += read_length
+                        
+                        for i, b in enumerate(color_index):
+                            # splits the byte into two 4bit sections, shifts left 1bit, and sets least sig to 1
+                            # then uses as index for player color value
+                            outbuf.append(player_cols[color][((b >> 3) & 0b11111) | 0b1])
+                            pixel_ix += 1
+                            # Don't append trailing null padding on odd run lengths
+                            if (run_length % 2 == 0) or (i < len(color_index) - 1):
+                                outbuf.append(player_cols[color][((b << 1) & 0b11111) | 0b1])
+                                pixel_ix += 1                    
                 case _:
                     print(f"{line_index:3d},{pixel_ix:3d}: Unsupported flag {flag} in datapoint 0x{run_header[0]:02x} at offset 0x{fh.tell()-1:08x}")
         if len(outbuf) < line.pixel_length:
