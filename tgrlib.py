@@ -13,7 +13,6 @@ from PIL import Image
 from configparser import ConfigParser
 from collections import OrderedDict
 
-<<<<<<< HEAD
 # check if running as a PyInstaller exe
 try:
     import pyi_splash
@@ -23,11 +22,8 @@ except Exception:
     is_exe = False
 
 #is_exe=True
+verbose = False
 
-verbose = False
-=======
-verbose = False
->>>>>>> b1bbf8e (Added support for alpha player pixels when unpacking)
 frame_number_re = re.compile(r"fram_(\d{1,4})")
 
 
@@ -273,6 +269,10 @@ class tgrFile:
             #    in_fh.seek(12, 1)
             for _ in range(self.framecount):
                 (ulx, uly, lrx, lry, offset) = struct.unpack("HHHHI", in_fh.read(12))
+                # Skip empty frames (offset will be zero)
+                if offset == 0:
+                    print(f'Skipping Frame {_} because it is empty. Please adjust animations in sprite.ini accordingly')
+                    continue
                 #in_fh.seek(4, 1)
                 #self.framesizes.append(struct.unpack("HH", in_fh.read(4)))
                 self.framesizes.append((1+lrx-ulx, 1+lry-uly, offset))
