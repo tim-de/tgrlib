@@ -141,8 +141,9 @@ typedef struct {
             if ((flag & 0b00011111) > 0b11011) {
                 int run_type : 3;
                 int fixed_bits : 3;
+                int ix_l : 2;
+                int ix_h : 3 <comment="Use (ix_h<<2)|ix_l for correct index">;
                 int alpha : 5;
-                int index : 5;
             } else {
                 int run_type : 3;
                 int run_length : 5;                
@@ -154,6 +155,8 @@ typedef struct {
             break;
     }
 } RUN;
+
+//string indexComment()
 
 // LINE
 typedef struct {
