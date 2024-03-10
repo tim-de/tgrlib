@@ -23,7 +23,7 @@ except Exception:
 
 #is_exe=True
 
-verbose = True
+verbose = False
 frame_number_re = re.compile(r"fram_(\d{1,4})")
 
 
