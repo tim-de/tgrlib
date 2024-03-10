@@ -34,9 +34,9 @@ typedef struct {
 // Represents an 'immediate color' pixel (16 bits representing color)
 typedef struct {
     LittleEndian();
-    int blue : 5;
-    int green : 6;
-    int red : 5;
+    uint16 blue : 5;
+    uint16 green : 6;
+    uint16 red : 5;
 } IMM_PIXEL <optimize=false,bgcolor=PixelColor,comment=ColorComment>;
 
 // Represents an 'indexed color' pixel (8 bits representing palette index)   
@@ -48,8 +48,8 @@ typedef struct {
 // Perform (pixelN << 1) | 1 to calculate the actual index value
 typedef struct {
     BigEndian();
-    int pixel1 : 4;
-    int pixel2 : 4;
+    ubyte pixel1 : 4;
+    ubyte pixel2 : 4;
     LittleEndian();
 } PLYR_PIXEL <optimize=false,bgcolor=0x0000FF>;
 
@@ -88,12 +88,12 @@ typedef struct {
     //local uchar run_header = ReadUByte() >> 5;
     switch(ReadUByte() >> 5) {
         case 0b000:     // Transparent spacing pixels
-            int run_type : 3;
-            int ct_transparent_pixels : 5;
+            ubyte run_type : 3;
+            ubyte ct_transparent_pixels : 5;
             break;
         case 0b001:     // Run length encoded run of pixels
-            int run_type : 3;
-            int run_length : 5;
+            ubyte run_type : 3;
+            ubyte run_length : 5;
             if (hedr.bit_depth == 8) {
                 IND_PIXEL ind_pixel;
             } else {
@@ -101,8 +101,8 @@ typedef struct {
             }
             break;
         case 0b010:     // Unencoded run of pixels
-            int run_type : 3;
-            int run_length : 5;
+            ubyte run_type : 3;
+            ubyte run_length : 5;
             if (hedr.bit_depth == 8) {
                 IND_PIXEL ind_pixels[run_length];
             } else {
@@ -110,8 +110,8 @@ typedef struct {
             }
             break;
         case 0b011:     // Run length encoded run of translucent/glowing colored pixels
-            int run_type : 3;
-            int run_length : 5;
+            ubyte run_type : 3;
+            ubyte run_length : 5;
             ubyte alpha;
             if (hedr.bit_depth == 8) {
                 IND_PIXEL ind_pixel;
@@ -120,8 +120,8 @@ typedef struct {
             }
             break;
         case 0b100:     // Sets the brightness of a single translucent pixel
-            int run_type : 3;
-            int alpha : 5;
+            ubyte run_type : 3;
+            ubyte alpha : 5;
             if (hedr.bit_depth == 8) {
                 IND_PIXEL ind_pixel;
             } else {
@@ -129,24 +129,24 @@ typedef struct {
             }
             break;
         case 0b101:     // Shadow pixels in sprites
-            int run_type : 3;
-            int ct_shadow_pixels : 5;
+            ubyte run_type : 3;
+            ubyte ct_shadow_pixels : 5;
             break;
         case 0b110:     // One Player Color pixel
-            int run_type : 3;
-            int player_color : 5;
+            ubyte run_type : 3 <bgcolor=cRed>;
+            ubyte player_color : 5;
             break;
         case 0b111:     // Run Length encoded run of player color pixels
             local ubyte flag = ReadByte();
             if ((flag & 0b00011111) > 0b11011) {
-                int run_type : 3;
-                int fixed_bits : 3;
-                int ix_l : 2;
-                int ix_h : 3 <comment="Use (ix_h<<2)|ix_l for correct index">;
-                int alpha : 5;
+                uint16 run_type : 3;
+                uint16 fixed_bits : 3;
+                uint16 ix_l : 2;
+                uint16 ix_h : 3 <comment="Use (ix_h<<2)|ix_l for correct index">;
+                uint16 alpha : 5;
             } else {
-                int run_type : 3;
-                int run_length : 5;                
+                ubyte run_type : 3;
+                ubyte run_length : 5;                
                 PLYR_PIXEL player_pixels[(run_length + 1) >> 1];  // Since each byte holds 2 pixels, divide taking the ceiling 
             }
             break;
