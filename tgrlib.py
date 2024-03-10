@@ -433,7 +433,7 @@ class tgrFile:
         config.set('BitDepth', 'Depth', str(self.bits_per_px))
         
         config.add_section('HotSpot')
-        config.set('HotSpot', '; HotSpot is the position the sprite is dispalyed at in-game relative to the game object')
+        config.set('HotSpot', '; HotSpot is the position the sprite is displayed at in-game relative to the game object')
         config.set('HotSpot', 'X', str(self.hotspot[0]))
         config.set('HotSpot', 'Y', str(self.hotspot[1]))
         
