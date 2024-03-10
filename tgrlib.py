@@ -26,6 +26,7 @@ verbose = False
 
 frame_number_re = re.compile(r"fram_(\d{1,4})")
 
+max_alpha = lambda p: Pixel(*(p.values()[:3]))
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
@@ -382,7 +383,7 @@ class tgrFile:
                     if run_length > 27:
                         byte = fh.read(1)[0]
                         alpha = byte & 31
-                        color_index = (byte >> 5) | (run_length & 3)
+                        color_index = (byte >> 3 & 0b11100) | (run_length & 3)
                         # create new pixel object to avoid shallow copying
                         new_pixel = Pixel(*player_cols[color][color_index].values())
                         new_pixel.alpha = round(alpha / 31 * 255)
@@ -492,7 +493,7 @@ class tgrFile:
                 next_pixel = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1])
                 if p != next_pixel:
                     break
-                if color and next_pixel in player_cols[color].values():
+                if color and max_alpha(next_pixel) in player_cols[color].values():
                     break
                 collected += 1
                 if translucent and collected == 22:
@@ -510,7 +511,7 @@ class tgrFile:
                 next_pixel = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1])
                 if this_pixel == next_pixel or this_pixel.alpha != 255:
                     break
-                if color and this_pixel in player_cols[color].values():
+                if color and max_alpha(this_pixel) in player_cols[color].values():
                     break
                 if verbose and frame_index == 0:
                     print(f"\tLook_Ahead: pixel {this_pixel} at c:{pixel_ix + collected} doesn't match pixel {next_pixel} at c:{pixel_ix + collected + 1}")
@@ -595,6 +596,39 @@ class tgrFile:
                 outbuf += struct.pack('<B', header)
                 pixel_ix += ct_shadow
                 ct_pixels += ct_shadow
+            
+            # Set alpha to 255 for compare so translucent PP will still match
+            elif max_alpha(p) in player_cols[color].values():
+                # encode translucent PP
+                if p.alpha < 255:
+                    flag = 0b111 << 5
+                    fixed_bits = 0b111 << 2
+                    color_index = list(player_cols[color].keys())[list(player_cols[color].values()).index(max_alpha(p))]
+                    # split color_index for packing
+                    ci_l = (color_index & 0b11)
+                    ci_h = (color_index & 0b11100) << 3
+                    a = p.to_int()[3] & 0b11111
+                    header = flag + fixed_bits + ci_l
+                    body = ci_h + a
+                    outbuf += struct.pack('<BB', header, body)
+                    print(f"  packing header {header:02X} and body {body:02X}")
+                    pixel_ix += 1
+                    ct_pixels += 1
+                    
+                    # encode opaque PP
+                else:
+                    if verbose:
+                        if frame_index == 0:
+                            print(f'matched pixel {p} in color list {color}')
+                        printf('  chose flag 0b110')
+                    flag = 0b110 << 5
+                    color_index = list(player_cols[color].keys())[list(player_cols[color].values()).index(p)]
+                    header = flag + (color_index & 0b11111)
+                    outbuf += struct.pack('B', header)
+                    pixel_ix += 1
+                    ct_pixels += 1
+                    if verbose and frame_index == 0:
+                        print(f'  packed {header:02X}, flag {flag}, index {color_index}')
                 
             elif p.alpha < 255:     #Encode translucent pixels                    
                 run_length = self.look_ahead(p, frame_index, line_index, pixel_ix, translucent=True) + 1
@@ -662,20 +696,6 @@ class tgrFile:
                                 print(f'    packing body:{body:04X}')
                         pixel_ix += run_length
                         ct_pixels += run_length
-                        
-                    elif color and p in player_cols[color].values():
-                        if verbose:
-                            if frame_index == 0:
-                                print(f'matched pixel {p} in color list {color}')
-                            printf('  chose flag 0b110')
-                        flag = 0b110 << 5
-                        color_index = list(player_cols[color].keys())[list(player_cols[color].values()).index(p)]
-                        header = flag + (color_index & 0b11111)
-                        outbuf += struct.pack('B', header)
-                        pixel_ix += 1
-                        ct_pixels += 1
-                        if verbose and frame_index == 0:
-                            print(f'  packed {header:02X}, flag {flag}, index {color_index}')
                     
                     else:
                         print(f'f:{frame_index: >4} l:{line_index: >4} p:{pixel_ix} : could not pack {p}, defaulting to 0x0000')
