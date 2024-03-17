@@ -2,6 +2,7 @@
 
 import argparse
 import tgrlib
+import struct
 from pathlib import Path
 from PIL import Image
 
@@ -97,8 +98,12 @@ def pack(args: argparse.Namespace):
     
     data = b''
     for frame_index in range(0,len(imagefile.img_data)):
-        imagefile.frameoffsets.append(len(data))
-        data += imagefile.encodeFrame(frame_index, color=args.color)
+        if frame_index in imagefile.padding_frames:
+            imagefile.frameoffsets.append(0)
+            data += struct.pack('4sI', b'FRAM', 0)
+        else:
+            imagefile.frameoffsets.append(len(data))
+            data += imagefile.encodeFrame(frame_index, color=args.color)
     data = imagefile.encodeHeader(data)
     data = imagefile.encodeForm(data)
     print("writing to: ", outfile)

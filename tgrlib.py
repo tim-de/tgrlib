@@ -234,21 +234,24 @@ class tgrFile:
                 self.img_data = [[] for _ in range(len(self.imgs))]
                 self.size = self.imgs[0].size
                 for index, img in enumerate(self.imgs):
-                    if img.size != self.size:
-                        raise ValueError(f"Frame:{index} size:{img.size} doesn't match Frame:0 size:{self.size}")
-                    if not no_crop:
-                        # from https://stackoverflow.com/a/67677468
-                        img_array = np.array(img)
-                        # Find indices of non-transparent pixels (indices where alpha channel value is above zero).
-                        idx = np.where(img_array[:, :, 3] > 0)
-                        # Get minimum and maximum index in both axes (top left corner and bottom right corner)
-                        x0, y0, x1, y1 = idx[1].min(), idx[0].min(), idx[1].max(), idx[0].max()
-                        # Crop rectangle and convert to Image
-                        img = Image.fromarray(img_array[y0:y1+1, x0:x1+1, :])
-                        self.framesizes.append([x1-x0+1, y1-y0+1, x0, y0, x1, y1])  # +1 includes both endpoints
+                    if index in self.padding_frames:
+                        self.framesizes.append([0, 0, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF])
                     else:
-                        self.framesizes.append([img.size[0], img.size[1], 0, 0, img.size[0]-1, img.size[1]-1])
-                    self.img_data[index] = img.getdata()
+                        if img.size != self.size:
+                            raise ValueError(f"Frame:{index} size:{img.size} doesn't match Frame:0 size:{self.size}")
+                        if not no_crop:
+                            # from https://stackoverflow.com/a/67677468
+                            img_array = np.array(img)
+                            # Find indices of non-transparent pixels (indices where alpha channel value is above zero).
+                            idx = np.where(img_array[:, :, 3] > 0)
+                            # Get minimum and maximum index in both axes (top left corner and bottom right corner)
+                            x0, y0, x1, y1 = idx[1].min(), idx[0].min(), idx[1].max(), idx[0].max()
+                            # Crop rectangle and convert to Image
+                            img = Image.fromarray(img_array[y0:y1+1, x0:x1+1, :])
+                            self.framesizes.append([x1-x0+1, y1-y0+1, x0, y0, x1, y1])  # +1 includes both endpoints
+                        else:
+                            self.framesizes.append([img.size[0], img.size[1], 0, 0, img.size[0]-1, img.size[1]-1])
+                        self.img_data[index] = img.getdata()
                     
 
     def read_header(self):
@@ -420,6 +423,7 @@ class tgrFile:
         self.bits_per_px = int(config['BitDepth']['Depth'])
         self.hotspot = (int(config['HotSpot']['X']), int(config['HotSpot']['Y']))
         self.bounding_box = (int(config['BoundingBox']['XMin']), int(config['BoundingBox']['YMin']), int(config['BoundingBox']['XMax']), int(config['BoundingBox']['YMax']))
+        self.padding_frames = list(map(int, config['PaddingFrames']['FrameList'].split(',')))
         
         self.animations = [(0, 0, 0, 0) for _ in range(6)]
         self.anim_count = 0
@@ -450,7 +454,8 @@ class tgrFile:
         config.add_section('BitDepth')
         config.set('BitDepth', ('; BitDepth is the number of bits used to encode each pixel color.\n'+
                                 '; This will be 16 if the sprite uses direct color and 8 if it uses a color palette'))
-        config.set('BitDepth', 'Depth', str(self.bits_per_px))
+        # hardcoded to 16 because repacking with a palette is not currently supported
+        config.set('BitDepth', 'Depth', '16')
         
         config.add_section('HotSpot')
         config.set('HotSpot', '; HotSpot is the position the sprite is displayed at in-game relative to the game object')
@@ -763,6 +768,9 @@ class tgrFile:
         # FORM + HEDR header + HEDR body + expected frame sizes + animations + FRAM header
         outbuf = b''
         for s, o in zip(self.framesizes, self.frameoffsets):
+            # make sure offset stays 0 for padding frames
+            if s[2] == 0xFFFF and o == 0:
+                o -= offset_to_fram
             outbuf += struct.pack('4HI',
                                  s[2],
                                  s[3],
