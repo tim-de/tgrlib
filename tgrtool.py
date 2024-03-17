@@ -24,6 +24,14 @@ def unpack(args: argparse.Namespace):
     frame_index = 0
     pixel_format = "RGBA"
     for frame_index, frame in enumerate(imagefile.frames):
+        
+        # Check for padding (blank) frames
+        if frame.size == (0, 0,):
+            print(f'padding frame {frame_index}')
+            image = Image.new('RGBA',(1,1),(0,0,0,0))
+            image.save(f"{image_name}/fram_{frame_index:04d}.png")
+            continue            
+        
         if args.single_frame != -1 and args.single_frame != frame_index:
             continue
     #print(imagefile.framecount)

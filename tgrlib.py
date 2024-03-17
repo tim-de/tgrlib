@@ -161,13 +161,13 @@ class Frame:
     def __init__(self, size, in_fh: io.BufferedReader):
         self.size = size
         self.lines = []
-        while True:
+        while len(self.lines) < self.size[1]:
             newline = Line(in_fh, False)
             #if newline.data_length == 0:
             #    continue
             self.lines.append(newline)
-            if len(self.lines) >= self.size[1]:
-                break
+            #if len(self.lines) >= self.size[1]:
+            #    break
             in_fh.seek(newline.offset + newline.data_length)
 
 class tgrFile:
@@ -272,12 +272,12 @@ class tgrFile:
                 (ulx, uly, lrx, lry, offset) = struct.unpack("HHHHI", in_fh.read(12))
                 # Skip empty frames (offset will be zero)
                 if offset == 0:
+                    self.framesizes.append((0, 0, 0))
+                    self.frameoffsets.append(((0, 0), (0, 0)))
                     print(f'Skipping Frame {_} because it is empty. Please adjust animations in sprite.ini accordingly')
-                    continue
-                #in_fh.seek(4, 1)
-                #self.framesizes.append(struct.unpack("HH", in_fh.read(4)))
-                self.framesizes.append((1+lrx-ulx, 1+lry-uly, offset))
-                self.frameoffsets.append(((ulx, uly), (lrx, lry)))
+                else:
+                    self.framesizes.append((1+lrx-ulx, 1+lry-uly, offset))
+                    self.frameoffsets.append(((ulx, uly), (lrx, lry)))
             
             self.anim_count = struct.unpack('H',in_fh.read(2))[0]
             self.animations = []
