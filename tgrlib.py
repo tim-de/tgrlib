@@ -161,13 +161,13 @@ class Frame:
     def __init__(self, size, in_fh: io.BufferedReader):
         self.size = size
         self.lines = []
-        while True:
+        while len(self.lines) < self.size[1]:
             newline = Line(in_fh, False)
             #if newline.data_length == 0:
             #    continue
             self.lines.append(newline)
-            if len(self.lines) >= self.size[1]:
-                break
+            #if len(self.lines) >= self.size[1]:
+            #    break
             in_fh.seek(newline.offset + newline.data_length)
 
 class tgrFile:
@@ -217,6 +217,7 @@ class tgrFile:
         self.framesizes = []
         self.frameoffsets = []
         self.frames = []
+        self.padding_frames = []
 
     def load(self, config_path: str|None=None, no_crop=False):
         match self.read_from:
@@ -233,21 +234,24 @@ class tgrFile:
                 self.img_data = [[] for _ in range(len(self.imgs))]
                 self.size = self.imgs[0].size
                 for index, img in enumerate(self.imgs):
-                    if img.size != self.size:
-                        raise ValueError(f"Frame:{index} size:{img.size} doesn't match Frame:0 size:{self.size}")
-                    if not no_crop:
-                        # from https://stackoverflow.com/a/67677468
-                        img_array = np.array(img)
-                        # Find indices of non-transparent pixels (indices where alpha channel value is above zero).
-                        idx = np.where(img_array[:, :, 3] > 0)
-                        # Get minimum and maximum index in both axes (top left corner and bottom right corner)
-                        x0, y0, x1, y1 = idx[1].min(), idx[0].min(), idx[1].max(), idx[0].max()
-                        # Crop rectangle and convert to Image
-                        img = Image.fromarray(img_array[y0:y1+1, x0:x1+1, :])
-                        self.framesizes.append([x1-x0+1, y1-y0+1, x0, y0, x1, y1])  # +1 includes both endpoints
+                    if index in self.padding_frames:
+                        self.framesizes.append([0, 0, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF])
                     else:
-                        self.framesizes.append([img.size[0], img.size[1], 0, 0, img.size[0]-1, img.size[1]-1])
-                    self.img_data[index] = img.getdata()
+                        if img.size != self.size:
+                            raise ValueError(f"Frame:{index} size:{img.size} doesn't match Frame:0 size:{self.size}")
+                        if not no_crop:
+                            # from https://stackoverflow.com/a/67677468
+                            img_array = np.array(img)
+                            # Find indices of non-transparent pixels (indices where alpha channel value is above zero).
+                            idx = np.where(img_array[:, :, 3] > 0)
+                            # Get minimum and maximum index in both axes (top left corner and bottom right corner)
+                            x0, y0, x1, y1 = idx[1].min(), idx[0].min(), idx[1].max(), idx[0].max()
+                            # Crop rectangle and convert to Image
+                            img = Image.fromarray(img_array[y0:y1+1, x0:x1+1, :])
+                            self.framesizes.append([x1-x0+1, y1-y0+1, x0, y0, x1, y1])  # +1 includes both endpoints
+                        else:
+                            self.framesizes.append([img.size[0], img.size[1], 0, 0, img.size[0]-1, img.size[1]-1])
+                        self.img_data[index] = img.getdata()
                     
 
     def read_header(self):
@@ -272,12 +276,12 @@ class tgrFile:
                 (ulx, uly, lrx, lry, offset) = struct.unpack("HHHHI", in_fh.read(12))
                 # Skip empty frames (offset will be zero)
                 if offset == 0:
+                    self.framesizes.append((0, 0, 0))
+                    self.frameoffsets.append(((0, 0), (0, 0)))
                     print(f'Skipping Frame {_} because it is empty. Please adjust animations in sprite.ini accordingly')
-                    continue
-                #in_fh.seek(4, 1)
-                #self.framesizes.append(struct.unpack("HH", in_fh.read(4)))
-                self.framesizes.append((1+lrx-ulx, 1+lry-uly, offset))
-                self.frameoffsets.append(((ulx, uly), (lrx, lry)))
+                else:
+                    self.framesizes.append((1+lrx-ulx, 1+lry-uly, offset))
+                    self.frameoffsets.append(((ulx, uly), (lrx, lry)))
             
             self.anim_count = struct.unpack('H',in_fh.read(2))[0]
             self.animations = []
@@ -419,6 +423,7 @@ class tgrFile:
         self.bits_per_px = int(config['BitDepth']['Depth'])
         self.hotspot = (int(config['HotSpot']['X']), int(config['HotSpot']['Y']))
         self.bounding_box = (int(config['BoundingBox']['XMin']), int(config['BoundingBox']['YMin']), int(config['BoundingBox']['XMax']), int(config['BoundingBox']['YMax']))
+        self.padding_frames = list(map(int, config['PaddingFrames']['FrameList'].split(',')))
         
         self.animations = [(0, 0, 0, 0) for _ in range(6)]
         self.anim_count = 0
@@ -449,7 +454,8 @@ class tgrFile:
         config.add_section('BitDepth')
         config.set('BitDepth', ('; BitDepth is the number of bits used to encode each pixel color.\n'+
                                 '; This will be 16 if the sprite uses direct color and 8 if it uses a color palette'))
-        config.set('BitDepth', 'Depth', str(self.bits_per_px))
+        # hardcoded to 16 because repacking with a palette is not currently supported
+        config.set('BitDepth', 'Depth', '16')
         
         config.add_section('HotSpot')
         config.set('HotSpot', '; HotSpot is the position the sprite is displayed at in-game relative to the game object')
@@ -463,6 +469,13 @@ class tgrFile:
         config.set('BoundingBox', 'XMax', str(self.bounding_box[2]))
         config.set('BoundingBox', 'YMax', str(self.bounding_box[3]))
         
+        config.add_section('PaddingFrames')
+        config.set('PaddingFrames', ('; Building sprites reserve frames 0 through 2 for specific purposes:\n'+
+                                     '; Frame 0 is the base sprite. This is always displayed\n'+
+                                     '; Frame 1 is the wall overlay sprite\n'
+                                     '; Frame 2 is always left as a zero-length padding frame'))
+        config.set('PaddingFrames', 'FrameList', ','.join(map(str, self.padding_frames)))
+        
         config.add_section('Animations')
         config.set('Animations', ('; Sprites can have up to six animations, each consisting of a Start Frame, Frame Count, and Animation Count\n'+
                                   '; Start Frame is the first frame of the West-facing version of the animation. Subsequent versions are in counterclockwise order\n'+
@@ -474,7 +487,6 @@ class tgrFile:
                                   '; Animation3 is Idle for units\n'+
                                   '; Animation4 is Attack1 for units\n'+
                                   '; Animation5 is Rot for units and projectiles'))
-        
         for i in range(self.anim_count):
             config.add_section(f'Animation{i}')
             config.set(f'Animation{i}', 'StartFrame', str(self.animations[i][0]))
@@ -756,6 +768,9 @@ class tgrFile:
         # FORM + HEDR header + HEDR body + expected frame sizes + animations + FRAM header
         outbuf = b''
         for s, o in zip(self.framesizes, self.frameoffsets):
+            # make sure offset stays 0 for padding frames
+            if s[2] == 0xFFFF and o == 0:
+                o -= offset_to_fram
             outbuf += struct.pack('4HI',
                                  s[2],
                                  s[3],

@@ -34,15 +34,15 @@ typedef struct {
 // Represents an 'immediate color' pixel (16 bits representing color)
 typedef struct {
     LittleEndian();
-    uint16 blue : 5;
-    uint16 green : 6;
-    uint16 red : 5;
-} IMM_PIXEL <optimize=false,bgcolor=PixelColor,comment=ColorComment>;
+    ubyte blue : 5;
+    ubyte green : 6;
+    ubyte red : 5;
+} IMM_PIXEL <optimize=false,bgcolor=PixelColor,comment=ImmColorComment>;
 
 // Represents an 'indexed color' pixel (8 bits representing palette index)   
 typedef struct {
     ubyte index;
-} IND_PIXEL;
+} IND_PIXEL <optimize=false, bgcolor=IndPixelColor, comment=IndColorComment>;
 
 // Represents two 'player color' pixels, packed into one byte. 
 // Perform (pixelN << 1) | 1 to calculate the actual index value
@@ -61,7 +61,7 @@ int64 PixelColor( IMM_PIXEL &p ) {
     //return 0xFFFFFF;
 }
 
-string ColorComment ( IMM_PIXEL &p ) {
+string ImmColorComment ( IMM_PIXEL &p ) {
     local double r8 = (double)p.red / 31.0 * 255.0;
     if ( r8 > (Floor(r8) + 0.5) ) {
         r8 = Ceil(r8);
@@ -83,16 +83,46 @@ string ColorComment ( IMM_PIXEL &p ) {
     return Str("r:%d g:%d b:%d", r8, g8, b8);
 }
 
+int64 IndPixelColor( IND_PIXEL &p ) {
+    local uint64 r8 = (double)palt.pixels[p.index].red / 31.0 * 255.0;
+    local uint64 g8 = (double)palt.pixels[p.index].green / 63.0 * 255.0;
+    local uint64 b8 = (double)palt.pixels[p.index].blue / 31.0 * 255.0;
+    return (b8 << 16 | g8 << 8 | r8);
+    //return 0xFFFFFF;
+}
+
+string IndColorComment ( IND_PIXEL &p ) {
+    local double r8 = (double)palt.pixels[p.index].red / 31.0 * 255.0;
+    if ( r8 > (Floor(r8) + 0.5) ) {
+        r8 = Ceil(r8);
+    } else {
+        r8 = Floor(r8);
+    }
+    local double g8 = (double)palt.pixels[p.index].green / 63.0 * 255.0;
+    if ( g8 > (Floor(g8) + 0.5) ) {
+        g8 = Ceil(g8);
+    } else {
+        g8 = Floor(g8);
+    }
+    local double b8 = (double)palt.pixels[p.index].blue / 31.0 * 255.0;
+    if ( b8 > (Floor(b8) + 0.5) ) {
+        b8 = Ceil(b8);
+    } else {
+        b8 = Floor(b8);
+    }
+    return Str("r:%d g:%d b:%d", r8, g8, b8);
+}
+
 typedef struct {
     BigEndian();
     //local uchar run_header = ReadUByte() >> 5;
     switch(ReadUByte() >> 5) {
         case 0b000:     // Transparent spacing pixels
-            ubyte run_type : 3;
+            ubyte run_type : 3 <comment="Transparent Padding">;
             ubyte ct_transparent_pixels : 5;
             break;
         case 0b001:     // Run length encoded run of pixels
-            ubyte run_type : 3;
+            ubyte run_type : 3 <comment="RLE single-color run">;
             ubyte run_length : 5;
             if (hedr.bit_depth == 8) {
                 IND_PIXEL ind_pixel;
@@ -101,7 +131,7 @@ typedef struct {
             }
             break;
         case 0b010:     // Unencoded run of pixels
-            ubyte run_type : 3;
+            ubyte run_type : 3 <comment="RLE multi-color run">;
             ubyte run_length : 5;
             if (hedr.bit_depth == 8) {
                 IND_PIXEL ind_pixels[run_length];
@@ -110,7 +140,7 @@ typedef struct {
             }
             break;
         case 0b011:     // Run length encoded run of translucent/glowing colored pixels
-            ubyte run_type : 3;
+            ubyte run_type : 3 <comment="RLE single-color run with alpha">;
             ubyte run_length : 5;
             ubyte alpha;
             if (hedr.bit_depth == 8) {
@@ -120,7 +150,7 @@ typedef struct {
             }
             break;
         case 0b100:     // Sets the brightness of a single translucent pixel
-            ubyte run_type : 3;
+            ubyte run_type : 3 <comment="Single pixel with alpha">;
             ubyte alpha : 5;
             if (hedr.bit_depth == 8) {
                 IND_PIXEL ind_pixel;
@@ -129,21 +159,21 @@ typedef struct {
             }
             break;
         case 0b101:     // Shadow pixels in sprites
-            ubyte run_type : 3;
+            ubyte run_type : 3 <comment="Shadow pixels">;
             ubyte ct_shadow_pixels : 5;
             break;
         case 0b110:     // One Player Color pixel
-            ubyte run_type : 3 <bgcolor=cRed>;
+            ubyte run_type : 3 <comment="Single player-colored pixel", bgcolor=cRed>;
             ubyte player_color : 5;
             break;
         case 0b111:     // Run Length encoded run of player color pixels
             local ubyte flag = ReadByte();
             if ((flag & 0b00011111) > 0b11011) {
-                uint16 run_type : 3;
-                uint16 fixed_bits : 3;
-                uint16 ix_l : 2;
-                uint16 ix_h : 3 <comment="Use (ix_h<<2)|ix_l for correct index">;
-                uint16 alpha : 5;
+                ubyte run_type : 3 <comment="RLE player-pixel run">;
+                ubyte fixed_bits : 3;
+                ubyte ix_l : 2;
+                ubyte ix_h : 3 <comment="Use (ix_h<<2)|ix_l for correct index">;
+                ubyte alpha : 5;
             } else {
                 ubyte run_type : 3;
                 ubyte run_length : 5;                
