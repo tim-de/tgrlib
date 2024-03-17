@@ -296,7 +296,7 @@ class tgrFile:
         self.palette = []
         with open(self.filename, "rb") as in_fh:
             in_fh.seek(palt.data_offset)
-            (count,) = struct.unpack("<Hxx", in_fh.read(4))
+            (count,) = struct.unpack("<H", in_fh.read(2))
             print(f'Colors in Palette: {count}')
             for _ in range(count):
                 raw_pixel = in_fh.read(2)
@@ -304,8 +304,7 @@ class tgrFile:
                     raise ValueError("Not enough image data")
                 (pixel,) = struct.unpack("H", raw_pixel)
                 self.palette.append(Pixel.from_int(pixel))
-        #print(len(self.palette))
-    
+
     def get_frames(self):
         with open(self.filename, "rb") as in_fh:
             for child in self.framesizes:
@@ -316,7 +315,7 @@ class tgrFile:
     def get_next_pixel(self, in_fh: io.BufferedReader):
         if self.indexed_colour:
             (pixel_ix,) = struct.unpack("B", in_fh.read(1))
-            return self.palette[pixel_ix-1]
+            return self.palette[pixel_ix]
         else:
             (raw_pixel,) = struct.unpack("H", in_fh.read(2))
             return Pixel.from_int(raw_pixel)
