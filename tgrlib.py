@@ -217,6 +217,7 @@ class tgrFile:
         self.framesizes = []
         self.frameoffsets = []
         self.frames = []
+        self.padding_frames = []
 
     def load(self, config_path: str|None=None, no_crop=False):
         match self.read_from:
@@ -463,6 +464,13 @@ class tgrFile:
         config.set('BoundingBox', 'XMax', str(self.bounding_box[2]))
         config.set('BoundingBox', 'YMax', str(self.bounding_box[3]))
         
+        config.add_section('PaddingFrames')
+        config.set('PaddingFrames', ('; Building sprites reserve frames 0 through 2 for specific purposes:\n'+
+                                     '; Frame 0 is the base sprite. This is always displayed\n'+
+                                     '; Frame 1 is the wall overlay sprite\n'
+                                     '; Frame 2 is always left as a zero-length padding frame'))
+        config.set('PaddingFrames', 'FrameList', ','.join(map(str, self.padding_frames)))
+        
         config.add_section('Animations')
         config.set('Animations', ('; Sprites can have up to six animations, each consisting of a Start Frame, Frame Count, and Animation Count\n'+
                                   '; Start Frame is the first frame of the West-facing version of the animation. Subsequent versions are in counterclockwise order\n'+
@@ -474,7 +482,6 @@ class tgrFile:
                                   '; Animation3 is Idle for units\n'+
                                   '; Animation4 is Attack1 for units\n'+
                                   '; Animation5 is Rot for units and projectiles'))
-        
         for i in range(self.anim_count):
             config.add_section(f'Animation{i}')
             config.set(f'Animation{i}', 'StartFrame', str(self.animations[i][0]))

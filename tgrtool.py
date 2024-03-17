@@ -28,6 +28,7 @@ def unpack(args: argparse.Namespace):
         # Check for padding (blank) frames
         if frame.size == (0, 0,):
             print(f'padding frame {frame_index}')
+            imagefile.padding_frames.append(frame_index)
             image = Image.new('RGBA',(1,1),(0,0,0,0))
             image.save(f"{image_name}/fram_{frame_index:04d}.png")
             continue            
