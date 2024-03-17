@@ -452,7 +452,7 @@ class tgrFile:
         config.set('BitDepth', 'Depth', str(self.bits_per_px))
         
         config.add_section('HotSpot')
-        config.set('HotSpot', '; HotSpot is the position the sprite is dispalyed at in-game relative to the game object')
+        config.set('HotSpot', '; HotSpot is the position the sprite is displayed at in-game relative to the game object')
         config.set('HotSpot', 'X', str(self.hotspot[0]))
         config.set('HotSpot', 'Y', str(self.hotspot[1]))
         
@@ -554,7 +554,7 @@ class tgrFile:
         pixel_ix = 0
         offset = 0      # Offset from edge of frame to first non-padding pixel
         ct_pixels = 0
-        
+        padding_complete = False
         outbuf = b''
         
         while pixel_ix < self.framesizes[frame_index][0]:
@@ -565,19 +565,33 @@ class tgrFile:
             p = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix])
             if verbose:
                 print(f'reading p:{p} at l:{line_index} c:{pixel_ix}')
-            
+                
+            # Allows for offset to collect more than 31 pixels, set true once first non-padding pixel is reached
+            if padding_complete == False and p != transparency:
+                padding_complete = True
+                
             if p == transparency:        # Encode transparent pixels
                 if verbose:
                     print(f'  chose flag 0b000')
                 run_length = self.look_ahead(p, frame_index, line_index, pixel_ix) + 1
-                if pixel_ix == 0:   # If there are no preceding opaque pixels
-                    offset = run_length
+                # collect all leading padding
+                if not padding_complete:
+                    offset += run_length
                     pixel_ix += run_length
-                    #if frame_index == 0:
-                    #    print(f'f:{frame_index:>3} l:{line_index:>3} offset:{offset}')
+                # Don't write trailing padding
                 elif pixel_ix + run_length >= self.framesizes[frame_index][0]:
                     break
                 else:
+                    if run_length == 31:
+                        print(f'31 transparent pixels found, begining scan-ahead at l:{line_index} p:{pixel_ix}')
+                        collected = run_length
+                        while pixel_ix + collected < self.framesizes[frame_index][0] and (ct := self.look_ahead(p, frame_index, line_index, pixel_ix + collected) + 1) == 31:
+                            print(f'   read {ct} more, total is {collected}')
+                            collected += ct
+                        collected += ct  # ct won't have been added the final time
+                        if pixel_ix + collected >= self.framesizes[frame_index][0]:
+                            break
+                    
                     flag = 0b000 << 5
                     header = flag + (run_length & 0b11111)
                     outbuf += struct.pack('<B', header)
@@ -585,7 +599,7 @@ class tgrFile:
                     ct_pixels += run_length
                     if verbose:
                         print(f'  packing header {header:02X}')
-                
+            
                 if verbose:
                     print(f'  advanced to c:{pixel_ix}')
                 
@@ -707,7 +721,7 @@ class tgrFile:
                         
                 if verbose:
                         print(f'  advanced to c:{pixel_ix}')
-                    
+        
         return self.encodeLineHeader(frame_index, line_index, outbuf, ct_pixels, offset=offset)    
         
     
