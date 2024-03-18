@@ -83,6 +83,9 @@ class Pixel:
 
         return cls(red, green, blue)
     
+    def copy(self):
+        return Pixel(self.red, self.green, self.blue, self.alpha)
+    
     def to_int(self):
         r5 = round(self.red / 255 * 31)
         g6 = round(self.green / 255 * 63)
@@ -347,7 +350,7 @@ class tgrFile:
                     outbuf += [transparency for _ in range(run_length + increment)]
                 case 0b001:
                     pixel = self.get_next_pixel(fh)
-                    outbuf += [pixel for _ in range(run_length+increment)]
+                    outbuf += [pixel.copy() for _ in range(run_length+increment)]
                     pixel_ix += run_length+increment
                     line_ix += self.bits_per_px // 8
                 case 0b010:
@@ -358,18 +361,16 @@ class tgrFile:
                 case 0b011:
                     alpha_raw = fh.read(1)[0] & 31
                     alpha = round((alpha_raw / 31) * 255)
-                    #alpha = round(int.from_bytes(fh.read(1),byteorder=sys.byteorder) / 31 * 255) & 255# convert alpha channel from 5 bits to 8 bits
                     line_ix +=1
-                    #print(f"alpha: {alpha}")
                     pixel = self.get_next_pixel(fh)
                     pixel.alpha = alpha
-                    outbuf += [pixel for _ in range(run_length+increment)]
+                    outbuf += [pixel.copy() for _ in range(run_length+increment)]
                     pixel_ix += run_length+increment
                     line_ix += self.bits_per_px // 8
                 case 0b100:
                     pixel = self.get_next_pixel(fh)
                     pixel.alpha = round(run_length / 31 * 255)
-                    outbuf.append(pixel)
+                    outbuf.append(pixel.copy())
                     line_ix += self.bits_per_px // 8
                     pixel_ix += 1
                 case 0b101:
@@ -388,9 +389,9 @@ class tgrFile:
                         alpha = byte & 31
                         color_index = (byte >> 3 & 0b11100) | (run_length & 3)
                         # create new pixel object to avoid shallow copying
-                        new_pixel = Pixel(*player_cols[color][color_index].values())
-                        new_pixel.alpha = round(alpha / 31 * 255)
-                        outbuf.append(new_pixel)
+                        pixel = Pixel(*player_cols[color][color_index].values())
+                        pixel.alpha = round(alpha / 31 * 255)
+                        outbuf.append(pixel.copy())
                         pixel_ix += 1
                         line_ix += 1
                     else:
