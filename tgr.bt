@@ -84,27 +84,27 @@ string ImmColorComment ( IMM_PIXEL &p ) {
 }
 
 int64 IndPixelColor( IND_PIXEL &p ) {
-    local uint64 r8 = (double)palt.pixels[p.index].red / 31.0 * 255.0;
-    local uint64 g8 = (double)palt.pixels[p.index].green / 63.0 * 255.0;
-    local uint64 b8 = (double)palt.pixels[p.index].blue / 31.0 * 255.0;
+    local uint64 r8 = (double)PALT.pixels[p.index].red / 31.0 * 255.0;
+    local uint64 g8 = (double)PALT.pixels[p.index].green / 63.0 * 255.0;
+    local uint64 b8 = (double)PALT.pixels[p.index].blue / 31.0 * 255.0;
     return (b8 << 16 | g8 << 8 | r8);
     //return 0xFFFFFF;
 }
 
 string IndColorComment ( IND_PIXEL &p ) {
-    local double r8 = (double)palt.pixels[p.index].red / 31.0 * 255.0;
+    local double r8 = (double)PALT.pixels[p.index].red / 31.0 * 255.0;
     if ( r8 > (Floor(r8) + 0.5) ) {
         r8 = Ceil(r8);
     } else {
         r8 = Floor(r8);
     }
-    local double g8 = (double)palt.pixels[p.index].green / 63.0 * 255.0;
+    local double g8 = (double)PALT.pixels[p.index].green / 63.0 * 255.0;
     if ( g8 > (Floor(g8) + 0.5) ) {
         g8 = Ceil(g8);
     } else {
         g8 = Floor(g8);
     }
-    local double b8 = (double)palt.pixels[p.index].blue / 31.0 * 255.0;
+    local double b8 = (double)PALT.pixels[p.index].blue / 31.0 * 255.0;
     if ( b8 > (Floor(b8) + 0.5) ) {
         b8 = Ceil(b8);
     } else {
@@ -124,7 +124,7 @@ typedef struct {
         case 0b001:     // Run length encoded run of pixels
             ubyte run_type : 3 <comment="RLE single-color run">;
             ubyte run_length : 5;
-            if (hedr.bit_depth == 8) {
+            if (HEDR.bit_depth == 8) {
                 IND_PIXEL ind_pixel;
             } else {
                 IMM_PIXEL pixel;
@@ -133,7 +133,7 @@ typedef struct {
         case 0b010:     // Unencoded run of pixels
             ubyte run_type : 3 <comment="RLE multi-color run">;
             ubyte run_length : 5;
-            if (hedr.bit_depth == 8) {
+            if (HEDR.bit_depth == 8) {
                 IND_PIXEL ind_pixels[run_length];
             } else {
                 IMM_PIXEL pixels[run_length];
@@ -143,7 +143,7 @@ typedef struct {
             ubyte run_type : 3 <comment="RLE single-color run with alpha">;
             ubyte run_length : 5;
             ubyte alpha;
-            if (hedr.bit_depth == 8) {
+            if (HEDR.bit_depth == 8) {
                 IND_PIXEL ind_pixel;
             } else {
                 IMM_PIXEL pixel;
@@ -152,7 +152,7 @@ typedef struct {
         case 0b100:     // Sets the brightness of a single translucent pixel
             ubyte run_type : 3 <comment="Single pixel with alpha">;
             ubyte alpha : 5;
-            if (hedr.bit_depth == 8) {
+            if (HEDR.bit_depth == 8) {
                 IND_PIXEL ind_pixel;
             } else {
                 IMM_PIXEL pixel;
@@ -236,7 +236,7 @@ typedef struct {
     uint32 chunk_length; //distance from end of chunk_length to next FRAM
     LittleEndian();
     // If TGR is a terrain file
-    if (hedr.file_type == 2) {
+    if (HEDR.file_type == 2) {
         struct TERRAIN {
             IMM_PIXEL pixel[1024];
             char footer[chunk_length - 2048];
@@ -253,7 +253,7 @@ typedef struct {
             }
         }
     }
-} FRAM <optimize=false>;
+} FRAM_CHUNK <optimize=false>;
 
 typedef struct {
     char chunk_name[4];
@@ -261,20 +261,19 @@ typedef struct {
     uint32 chunk_length;
     LittleEndian();
     uint16 palette_size;
-    ubyte unknown[2];  // Palette size can only be 256, so these bytes are for something else
     IMM_PIXEL pixels[palette_size] <optimize=false>;
-} PALT;
+} PALT_CHUNK;
 
 
-struct FORM {
+typedef struct {
     char chunk_name[4];  // Always FORM
     BigEndian();
     int32 length;  //length in bytes from start of HEDR to end of file
     LittleEndian();
     char file_type[4];  // Always TGAR
-} form;
+} FORM_CHUNK;
 
-struct HEDR {
+typedef struct {
     char chunk_name[4];
     BigEndian();
     uint32 chunk_length;
@@ -312,23 +311,32 @@ struct HEDR {
     
     uint16 anim_count;
     ANIMATION anim[anim_count];
-    
-    //if (hedr.anim_count % 2 == 0) {
-    //    ubyte padding[2];
-    //}
-    local uint32 curr_pos = FTell();
-    if (curr_pos < start_pos + chunk_length) {
-        ubyte padding[start_pos + chunk_length - curr_pos];
-    }
-} hedr;
+} HEDR_CHUNK;
 
-/*if (hedr.anim_count % 2 == 0) {
-        ubyte padding[2];
-    }
-*/
 
-if (hedr.bit_depth == 8) {
-    PALT palt;
+typedef struct {
+    char chunk_name[4];
+    BigEndian();
+    uint32 chunk_length <fgcolor=0x3C8E38>;
+    LittleEndian();
+    char data[chunk_length];
+} PLACEHOLDER_CHUNK;
+
+local uchar chunk_name[4];
+FSeek(0);
+local int start_pos = 0;
+while (!FEof()) {
+    start_pos = FTell();
+    ReadBytes(chunk_name, start_pos, 4);
+    switch(chunk_name) {
+        case "FORM": FORM_CHUNK FORM; FSeek(start_pos + 12); break;
+        case "HEDR": HEDR_CHUNK HEDR; FSeek(start_pos + HEDR.chunk_length + 8); break;
+        case "PALT": PALT_CHUNK PALT; FSeek(start_pos + PALT.chunk_length + 8); break;
+        case "FRAM": FRAM_CHUNK FRAM; FSeek(start_pos + FRAM.chunk_length + 8); break;
+        
+        default:
+            PLACEHOLDER_CHUNK chunk;
+            //FSeek(FTell()+chunk.chunk_length);
+            break;
+    }
 }
-    
-FRAM frames[hedr.frame_count];
