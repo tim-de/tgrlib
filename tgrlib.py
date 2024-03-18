@@ -281,7 +281,7 @@ class tgrFile:
                 if offset == 0:
                     self.framesizes.append((0, 0, 0))
                     self.frameoffsets.append(((0, 0), (0, 0)))
-                    print(f'Skipping Frame {_} because it is empty. Please adjust animations in sprite.ini accordingly')
+                    print(f'Frame {_} is a padding frame. Leave frame as-is to avoid packing errors')
                 else:
                     self.framesizes.append((1+lrx-ulx, 1+lry-uly, offset))
                     self.frameoffsets.append(((ulx, uly), (lrx, lry)))
