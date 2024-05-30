@@ -321,7 +321,7 @@ class tgrFile:
     def get_next_pixel(self, in_fh: io.BufferedReader):
         if self.indexed_colour:
             (pixel_ix,) = struct.unpack("B", in_fh.read(1))
-            return self.palette[pixel_ix]
+            return self.palette[pixel_ix].copy()
         else:
             (raw_pixel,) = struct.unpack("H", in_fh.read(2))
             return Pixel.from_int(raw_pixel)
