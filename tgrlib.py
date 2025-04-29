@@ -345,6 +345,7 @@ class tgrFile:
             (flag, run_length) = getRunData(run_header[0])
             if verbose:
                 print(f"\t\theader={run_header.hex()}")
+            #print(f'  reading flag {flag} at {line_ix}')
             
             if fx_error_fix:
                 if run_header[0] == 0xFD:
@@ -393,7 +394,7 @@ class tgrFile:
                     outbuf += [shadow for _ in range(run_length + increment)]
                 case 0b110:
                     #print(f"flag 6 at 0x{fh.tell()-1:08x}")
-                    outbuf.append(player_cols[color][run_length])
+                    outbuf.append(player_cols[color][run_length+1])
                     pixel_ix += 1
                 case 0b111:
                     # check if run or single translucent
@@ -404,7 +405,7 @@ class tgrFile:
                         alpha = byte & 31
                         color_index = (byte >> 3 & 0b11100) | (run_length & 3)
                         # create new pixel object to avoid shallow copying
-                        pixel = Pixel(*player_cols[color][color_index].values())
+                        pixel = Pixel(*player_cols[color][color_index+1].values())
                         pixel.alpha = round(alpha / 31 * 255)
                         outbuf.append(pixel.copy())
                         pixel_ix += 1

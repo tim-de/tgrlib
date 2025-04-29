@@ -5,6 +5,10 @@ import tgrlib
 import struct
 from pathlib import Path
 from PIL import Image
+import sys
+from PyQt5 import QtWidgets
+
+import interface
 
 def unpack(args: argparse.Namespace):
     tgrlib.verbose = args.verbose
@@ -42,6 +46,7 @@ def unpack(args: argparse.Namespace):
         imagedata = b""
         with open(image_path, "rb") as in_fh:
             for idx in range(len(frame.lines)):
+                #print(f'reading frame {frame_index} line {idx}')
                 rawline = imagefile.extractLine(in_fh, frame_index=frame_index, line_index=idx, increment=0, color=player_color, fx_error_fix=args.fx_error_fix)
                 #print(f"{idx+1:3d}: 0x{frame.lines[idx].offset:06x}, {len(rawline)}")
                 if len(rawline) < frame.size[0]:
@@ -142,20 +147,27 @@ pack_parse.add_argument('--portrait', choices=('large','small'), default=None, t
 pack_parse.add_argument('source', type=str, help='path to file or directory to unpack', nargs='+', action=MyAction)
 
 if __name__ == '__main__':
-    if tgrlib.is_exe:
-        print('Welcome to TGR Tool. Please enter a command, or type "--help" for help, or "exit" to exit')
+# =============================================================================
+#     if tgrlib.is_exe:
+#         print('Welcome to TGR Tool. Please enter a command, or type "--help" for help, or "exit" to exit')
+#         
+#         while True:
+#             command = input('tgrtool > ')
+#         
+#             if command.lower() == 'exit':
+#                 print('Exiting')
+#                 break
+#             try:              
+#                 args = main_parse.parse_args(command.split(' '))
+#                 args.func(args)
+#             except SystemExit:
+#                 print('')
+#     else:
+# =============================================================================
+        app = QtWidgets.QApplication(sys.argv)
+        main_window = interface.MainWindow()
+        main_window.show()
+        app.exec()
         
-        while True:
-            command = input('tgrtool > ')
-        
-            if command.lower() == 'exit':
-                print('Exiting')
-                break
-            try:              
-                args = main_parse.parse_args(command.split(' '))
-                args.func(args)
-            except SystemExit:
-                print('')
-    else:
-        args = main_parse.parse_args()
-        args.func(args)
+        #args = main_parse.parse_args()
+        #args.func(args)
