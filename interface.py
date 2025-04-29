@@ -8,6 +8,7 @@ Created on Mon Apr 28 14:36:45 2025
 from PyQt5 import QtCore, QtWidgets, QtGui
 from pathlib import Path
 from argparse import Namespace
+from io import BytesIO
 
 import tgrtool
 import tgrlib
@@ -53,10 +54,13 @@ class UnpackWidget(QtWidgets.QWidget):
     def __init__(self, parent):
         super(UnpackWidget, self).__init__(parent)
         self.settings = UnpackSettings(self)
+        self.preview = UnpackPreview(self)
         layout = QtWidgets.QHBoxLayout()
         layout.addWidget(self.settings)
+        layout.addWidget(self.preview)
         self.setLayout(layout)
         self.settings.select_tgr.clicked.connect(self.selectTGR)
+        self.settings.select_tgr.clicked.connect(self.preview.render)
         self.settings.unpack_button.clicked.connect(self.unpackTGR)
     
     def selectTGR(self):
@@ -159,7 +163,29 @@ class UnpackSettings(QtWidgets.QWidget):
             self.frame_index.setEnabled(True)
         else:
             self.frame_index.setEnabled(False)
-    
+
+class UnpackPreview(QtWidgets.QWidget):
+    def __init__(self, parent):
+        super(UnpackPreview, self).__init__(parent)
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(QtWidgets.QLabel('Preview'))
+        self.sprite_display = QtWidgets.QLabel()
+        layout.addWidget(self.sprite_display)
+        self.setLayout(layout)
+        
+    def render(self):
+        print('Rendering thumbnail ... ', end='')
+        self.parent().tgr.load()
+        preview = tgrtool.unpack_frame(self.parent().tgr,
+                                     0,
+                                     color=self.parent().settings.color.currentIndex()+1,
+                                     )
+        img_buffer = BytesIO()
+        preview.save(img_buffer, format='PNG')
+        pixmap = QtGui.QPixmap()
+        pixmap.loadFromData(img_buffer.getvalue())
+        self.sprite_display.setPixmap(pixmap)
+        print('finished!')  
         
 
 def FileDialog(directory=None, forOpen=True, isFolder=False, multiple=False, filters=("Kohan Graphical Assets (*.tgr)",), default_name=None, default_extension=None):

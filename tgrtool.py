@@ -26,7 +26,7 @@ def unpack(args: argparse.Namespace):
     Path(image_name).mkdir(exist_ok=True, parents=True)
 
     frame_index = 0
-    pixel_format = "RGBA"
+    #pixel_format = "RGBA"
     for frame_index, frame in enumerate(imagefile.frames):
         
         # Check for padding (blank) frames
@@ -39,42 +39,53 @@ def unpack(args: argparse.Namespace):
         
         if args.single_frame != -1 and args.single_frame != frame_index:
             continue
-    #print(imagefile.framecount)
-    # frame = imagefile.frames[frame_index]
 
         print(f"[Info] unpacking frame {frame_index} with size {frame.size}")
-        imagedata = b""
-        with open(image_path, "rb") as in_fh:
-            for idx in range(len(frame.lines)):
-                #print(f'reading frame {frame_index} line {idx}')
-                rawline = imagefile.extractLine(in_fh, frame_index=frame_index, line_index=idx, increment=0, color=player_color, fx_error_fix=args.fx_error_fix)
-                #print(f"{idx+1:3d}: 0x{frame.lines[idx].offset:06x}, {len(rawline)}")
-                if len(rawline) < frame.size[0]:
-                    rawline += [tgrlib.transparency for _ in range(frame.size[0] - len(rawline))]
-                #while len(rawline) < frame.size[0]:
-                #    rawline.append(tgrlib.Pixel(0, 0, 0))
-                if len(rawline) > frame.size[0]:
-                    rawline = rawline[0:frame.size[0]]
-                imagedata += b"".join([elem.pack_to_bin(pixel_format) for elem in rawline])
-                #print(len(imagedata))
-        target_len = (frame.size[0] * frame.size[1]) * (3 if format == "RGB" else 4)
-        if len(imagedata) < target_len:
-            imagedata += bytes([0x00 for _ in range(target_len - len(imagedata))])
-        if args.no_align_frames:
-            image = Image.new(pixel_format, frame.size)
-            image.frombytes(imagedata)
-        else:
-            image = Image.new(pixel_format, imagefile.size)
-            fram_img = Image.new(pixel_format, frame.size)
-            fram_img.frombytes(imagedata)
-            offset = imagefile.frameoffsets[frame_index][0]
-            image.paste(fram_img, offset)
+        image = unpack_frame(imagefile,
+                             frame_index,
+                             color=args.color,
+                             fx_error_fix=args.fx_error_fix,
+                             align_frames=(not args.no_align_frames),
+                             )
         image.save(f"{image_name}/fram_{frame_index:04d}.png")
     if args.config:
         config_path = args.config
     else:
         config_path = f"{image_name}/sprite.ini"
     imagefile.write_config(config_path)
+
+# unpacks a single frame and returns it as a pillow image object
+def unpack_frame(tgr, frame_index, color=1, fx_error_fix=False, align_frames=True, pixel_format="RGBA"):
+    imagedata = b""
+    with open(tgr.filename, "rb") as in_fh:
+        frame = tgr.frames[frame_index]
+        for idx in range(len(frame.lines)):
+            #print(f'reading frame {frame_index} line {idx}')
+            rawline = tgr.extractLine(in_fh, frame_index=frame_index, line_index=idx, increment=0, color=color, fx_error_fix=fx_error_fix)
+            #print(f"{idx+1:3d}: 0x{frame.lines[idx].offset:06x}, {len(rawline)}")
+            if len(rawline) < frame.size[0]:
+                rawline += [tgrlib.transparency for _ in range(frame.size[0] - len(rawline))]
+            #while len(rawline) < frame.size[0]:
+            #    rawline.append(tgrlib.Pixel(0, 0, 0))
+            if len(rawline) > frame.size[0]:
+                rawline = rawline[0:frame.size[0]]
+            imagedata += b"".join([elem.pack_to_bin(pixel_format) for elem in rawline])
+            #print(len(imagedata))
+    target_len = (frame.size[0] * frame.size[1]) * (3 if format == "RGB" else 4)
+    if len(imagedata) < target_len:
+        imagedata += bytes([0x00 for _ in range(target_len - len(imagedata))])
+    if not align_frames:
+        image = Image.new(pixel_format, frame.size)
+        image.frombytes(imagedata)
+    else:
+        image = Image.new(pixel_format, tgr.size)
+        fram_img = Image.new(pixel_format, frame.size)
+        fram_img.frombytes(imagedata)
+        offset = tgr.frameoffsets[frame_index][0]
+        image.paste(fram_img, offset)
+    
+    return image
+
 
 def pack(args: argparse.Namespace):
     imagefile = tgrlib.tgrFile(args.source)
