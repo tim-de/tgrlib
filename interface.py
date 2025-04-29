@@ -10,6 +10,7 @@ from pathlib import Path
 from argparse import Namespace
 
 import tgrtool
+import tgrlib
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, parent=None):
@@ -66,6 +67,14 @@ class UnpackWidget(QtWidgets.QWidget):
             self.filename = Path(filename[0])
             print(self.filename)
             self.settings.select_tgr.setText(self.filename.stem)
+            # get frame count from header to update frame_index max value
+            self.tgr = tgrlib.tgrFile(self.filename, is_sprite=False)
+            self.tgr.iff.load()
+            if self.tgr.iff.data.formtype != "TGAR":
+                print(f"Error: invalid file type: {self.iff.data.formtype}")
+            self.tgr.read_header()
+            self.settings.frame_index.setMaximum(self.tgr.framecount-1)
+            
     
     def unpackTGR(self):
         args = Namespace(color=self.settings.color.currentIndex()+1,
@@ -131,6 +140,7 @@ class UnpackSettings(QtWidgets.QWidget):
         
         self.single_frame = QtWidgets.QCheckBox(text='Single Frame', parent=self)
         self.single_frame.setChecked(False)
+        self.single_frame.stateChanged.connect(self.toggle_single_frame)
         self.frame_index = QtWidgets.QSpinBox()
         self.frame_index.setRange(0,300)
         self.frame_index.setEnabled(False)
@@ -144,7 +154,11 @@ class UnpackSettings(QtWidgets.QWidget):
         
         self.setLayout(layout)
     
-    
+    def toggle_single_frame(self, state):
+        if state == 2:
+            self.frame_index.setEnabled(True)
+        else:
+            self.frame_index.setEnabled(False)
     
         
 
