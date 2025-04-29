@@ -204,7 +204,10 @@ class tgrFile:
                                 exit(1)
                             print('>', f, fram_number)
                             # Maybe move opening the file into the load function
-                            self.imgs[fram_number] = Image.open(f)
+                            img = Image.open(f)
+                            if img.mode != 'RGBA':
+                                img = img.convert('RGBA')
+                            self.imgs[fram_number] = img
                         case '.INI':
                             print(f'Skipping {f.stem + f.suffix}')
                             # Shortens list to prevent crashes when reading a NoneType object
@@ -318,7 +321,7 @@ class tgrFile:
     def get_next_pixel(self, in_fh: io.BufferedReader):
         if self.indexed_colour:
             (pixel_ix,) = struct.unpack("B", in_fh.read(1))
-            return self.palette[pixel_ix]
+            return self.palette[pixel_ix].copy()
         else:
             (raw_pixel,) = struct.unpack("H", in_fh.read(2))
             return Pixel.from_int(raw_pixel)
@@ -423,7 +426,11 @@ class tgrFile:
         self.bits_per_px = int(config['BitDepth']['Depth'])
         self.hotspot = (int(config['HotSpot']['X']), int(config['HotSpot']['Y']))
         self.bounding_box = (int(config['BoundingBox']['XMin']), int(config['BoundingBox']['YMin']), int(config['BoundingBox']['XMax']), int(config['BoundingBox']['YMax']))
-        self.padding_frames = list(map(int, config['PaddingFrames']['FrameList'].split(',')))
+        
+        if len(config['PaddingFrames']['FrameList']) > 0:
+            self.padding_frames = list(map(int, config['PaddingFrames']['FrameList'].split(',')))
+        #else:
+        #    self.padding_frames = []
         
         self.animations = [(0, 0, 0, 0) for _ in range(6)]
         self.anim_count = 0
@@ -510,7 +517,8 @@ class tgrFile:
                 collected += 1
                 if translucent and collected == 22:
                     break
-                if collected == 30:
+                # Reduced from 30 for compatibility with certain gui sprites
+                if collected == 23:
                     break
             return collected
         else:
@@ -624,7 +632,8 @@ class tgrFile:
                 ct_pixels += ct_shadow
             
             # Set alpha to 255 for compare so translucent PP will still match
-            elif max_alpha(p) in player_cols[color].values():
+            # color != None skips player pixels if no -c passed
+            elif color != None and max_alpha(p) in player_cols[color].values():
                 # encode translucent PP
                 if p.alpha < 255:
                     flag = 0b111 << 5
@@ -646,7 +655,7 @@ class tgrFile:
                     if verbose:
                         if frame_index == 0:
                             print(f'matched pixel {p} in color list {color}')
-                        printf('  chose flag 0b110')
+                        print('  chose flag 0b110')
                     flag = 0b110 << 5
                     color_index = list(player_cols[color].keys())[list(player_cols[color].values()).index(p)]
                     header = flag + (color_index & 0b11111)

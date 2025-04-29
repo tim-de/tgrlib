@@ -151,7 +151,7 @@ typedef struct {
             break;
         case 0b100:     // Sets the brightness of a single translucent pixel
             ubyte run_type : 3 <comment="Single pixel with alpha">;
-            ubyte alpha : 5;
+            ubyte alpha : 5 <comment=Str("24bit alpha: %i", this*255/31)>;
             if (HEDR.bit_depth == 8) {
                 IND_PIXEL ind_pixel;
             } else {
@@ -236,22 +236,31 @@ typedef struct {
     uint32 chunk_length; //distance from end of chunk_length to next FRAM
     LittleEndian();
     // If TGR is a terrain file
-    if (HEDR.file_type == 2) {
-        struct TERRAIN {
-            IMM_PIXEL pixel[1024];
-            char footer[chunk_length - 2048];
-        } terrain;
-    } else {
-        local int bytes_used = 0;
-        while (bytes_used < chunk_length) {
-            if (chunk_length - bytes_used < 4) {
-                ubyte padding[chunk_length - bytes_used];
-                bytes_used += sizeof(padding);
-            } else {
-                LINE line;
-                bytes_used += sizeof(line);
+    switch(HEDR.file_type) {
+        case 2:
+            struct TERRAIN {
+                IMM_PIXEL pixel[1024];
+                char footer[chunk_length - 2048];
+            } terrain;
+            break;
+        case 3:
+            struct ALPHA_MASK {
+                ubyte mask_pixel[512];
+            } alpha_mask;
+            break;
+        default:
+            local int bytes_used = 0;
+            while (bytes_used < chunk_length) {
+                if (chunk_length - bytes_used < 4) {
+                    ubyte padding[chunk_length - bytes_used];
+                    bytes_used += sizeof(padding);
+                } else {
+                    LINE line;
+                    bytes_used += sizeof(line);
+                }
             }
-        }
+            break;
+        
     }
 } FRAM_CHUNK <optimize=false>;
 
@@ -282,7 +291,7 @@ typedef struct {
     uint32 version;
     uint16 frame_count;
     ubyte bit_depth;
-    ubyte file_type;  // 00 for game objects, 01 for protraits, 02 for terrain
+    ubyte file_type;  // 00 for game objects, 01 for portraits, 02 for terrain, 03 for alpha masks
     uint16 index_mode;
     uint16 offset_flag;
     
