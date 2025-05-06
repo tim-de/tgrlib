@@ -120,7 +120,7 @@ def load_player_colors(filename: str = "data/COLORS.INI"):
         value_match = c_value_re.match(c_file['PlayerColors'][color])
         if name_match and value_match:
             player_num = int(name_match.group(1))
-            shade_num = int(name_match.group(2))
+            shade_num = int(name_match.group(2)) - 1 # -1 to convert from 1-indexing to 0-indexing
             color = value_match.group(1,2,3)
             i_color = tuple(int(c) for c in color)
             if player_num not in player_cols.keys():
@@ -327,6 +327,7 @@ class tgrFile:
             return Pixel.from_int(raw_pixel)
 
     def extractLine(self, fh: io.BufferedReader, frame_index=0, line_index=0, increment=0, color=2, fx_error_fix=False):
+        #print(f"\tcalling extractLine with frame_index={frame_index}, line_index={line_index}, increment={increment}, color={color}, fx_error_fix={fx_error_fix}")
         outbuf = []
         line_ix = 0
         pixel_ix = 0

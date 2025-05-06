@@ -7,6 +7,7 @@ from pathlib import Path
 from PIL import Image
 
 def unpack(args: argparse.Namespace):
+    tgrlib.verbose = args.verbose
     image_path = args.source
     print(image_path)
     print(Path(image_path))
