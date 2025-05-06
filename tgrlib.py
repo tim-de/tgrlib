@@ -321,7 +321,11 @@ class tgrFile:
     def get_next_pixel(self, in_fh: io.BufferedReader):
         if self.indexed_colour:
             (pixel_ix,) = struct.unpack("B", in_fh.read(1))
-            return self.palette[pixel_ix].copy()
+            try:
+                return self.palette[pixel_ix].copy()
+            except IndexError:
+                print("Warning: IndexError when copying pixel from palette, replacing with transparency")
+                return Pixel(0, 0, 0, 0)
         else:
             (raw_pixel,) = struct.unpack("H", in_fh.read(2))
             return Pixel.from_int(raw_pixel)
@@ -380,7 +384,7 @@ class tgrFile:
                     else:
                         alpha = int(((32 - run_length) / 1.25 + 1.6) *255/16 )
                         outbuf.append(Pixel(0, 0, 0, alpha))
-                        print(f"run_length: {run_length}, setting alpha to {alpha}")
+                        #print(f"run_length: {run_length}, setting alpha to {alpha}")
                         pixel_ix += 1
                 case 0b100:
                     pixel = self.get_next_pixel(fh)
