@@ -327,10 +327,11 @@ class tgrFile:
             return Pixel.from_int(raw_pixel)
 
     def extractLine(self, fh: io.BufferedReader, frame_index=0, line_index=0, increment=0, color=2, fx_error_fix=False):
-        #print(f"\tcalling extractLine with frame_index={frame_index}, line_index={line_index}, increment={increment}, color={color}, fx_error_fix={fx_error_fix}")
+        if verbose:
+            print(f"\tcalling extractLine with frame_index={frame_index}, line_index={line_index}, increment={increment}, color={color}, fx_error_fix={fx_error_fix}")
         outbuf = []
-        line_ix = 0
-        pixel_ix = 0
+        line_ix = 0 # number of bytes read
+        pixel_ix = 0 # number of pixels written
         line = self.frames[frame_index].lines[line_index]
         fh.seek(line.offset)
         # print(f"Extracting line of length 0x{line.pixel_length:x}")
@@ -342,11 +343,15 @@ class tgrFile:
             run_header = fh.read(1)
             line_ix += 1
             (flag, run_length) = getRunData(run_header[0])
+            if verbose:
+                print(f"\t\theader={run_header.hex()}")
             
             if fx_error_fix:
-                if run_header[0] in (0x7F, 0xFD):
+                if run_header[0] == 0xFD:
                     outbuf.append(Pixel(255, 0, 255, 0))
                     pixel_ix += 1
+                    line_ix += 1
+                    fh.seek(1, 1)
                     continue
                     
             match flag:
@@ -363,14 +368,20 @@ class tgrFile:
                         line_ix += self.bits_per_px // 8
                         pixel_ix += 1
                 case 0b011:
-                    alpha_raw = fh.read(1)[0] & 31
-                    alpha = round((alpha_raw / 31) * 255)
-                    line_ix +=1
-                    pixel = self.get_next_pixel(fh)
-                    pixel.alpha = alpha
-                    outbuf += [pixel.copy() for _ in range(run_length+increment)]
-                    pixel_ix += run_length+increment
-                    line_ix += self.bits_per_px // 8
+                    if run_length <= 23:
+                        alpha_raw = fh.read(1)[0] & 31
+                        alpha = round((alpha_raw / 31) * 255)
+                        line_ix +=1
+                        pixel = self.get_next_pixel(fh)
+                        pixel.alpha = alpha
+                        outbuf += [pixel.copy() for _ in range(run_length+increment)]
+                        pixel_ix += run_length+increment
+                        line_ix += self.bits_per_px // 8
+                    else:
+                        alpha = int(((32 - run_length) / 1.25 + 1.6) *255/16 )
+                        outbuf.append(Pixel(0, 0, 0, alpha))
+                        print(f"run_length: {run_length}, setting alpha to {alpha}")
+                        pixel_ix += 1
                 case 0b100:
                     pixel = self.get_next_pixel(fh)
                     pixel.alpha = round(run_length / 31 * 255)
