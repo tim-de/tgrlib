@@ -9,8 +9,7 @@ from PIL import Image
 def unpack(args: argparse.Namespace):
     tgrlib.verbose = args.verbose
     image_path = args.source
-    print(image_path)
-    print(Path(image_path))
+    print(f"[Info] extracting data from {Path(image_path).resolve()}")
     player_color = args.color
     imagefile = tgrlib.tgrFile(image_path, False)
     imagefile.load()
@@ -19,8 +18,7 @@ def unpack(args: argparse.Namespace):
         image_name = args.output
     else:
         image_name = Path(image_path).stem
-    print(args.output)
-    print(image_name)
+    print(f"[Info] writing data to {Path(image_name).resolve()}")
     Path(image_name).mkdir(exist_ok=True, parents=True)
 
     frame_index = 0
@@ -29,7 +27,7 @@ def unpack(args: argparse.Namespace):
         
         # Check for padding (blank) frames
         if frame.size == (0, 0,):
-            print(f'padding frame {frame_index}')
+            #print(f'padding frame {frame_index}')
             imagefile.padding_frames.append(frame_index)
             image = Image.new('RGBA',(1,1),(0,0,0,0))
             image.save(f"{image_name}/fram_{frame_index:04d}.png")
@@ -40,7 +38,7 @@ def unpack(args: argparse.Namespace):
     #print(imagefile.framecount)
     # frame = imagefile.frames[frame_index]
 
-        print(frame_index, frame.size)
+        print(f"[Info] unpacking frame {frame_index} with size {frame.size}")
         imagedata = b""
         with open(image_path, "rb") as in_fh:
             for idx in range(len(frame.lines)):

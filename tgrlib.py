@@ -213,7 +213,7 @@ class tgrFile:
                             # Shortens list to prevent crashes when reading a NoneType object
                             del self.imgs[-1]
                         case _:
-                            print(f"Error: invalid file type {f.suffix}")
+                            print(f"[Error] invalid file type {f.suffix}")
                             del self.imgs[-1]
             case _:
                 print(f"Error: invalid read type {self.read_from}")
@@ -230,7 +230,7 @@ class tgrFile:
             case '.TGR':
                 self.iff.load()
                 if self.iff.data.formtype != "TGAR":
-                    print(f"Error: invalid file type: {self.iff.data.formtype}")
+                    print(f"[Error] invalid file type: {self.iff.data.formtype}")
                 self.read_header()
                 if self.indexed_colour:
                     self.load_palette()
@@ -270,21 +270,17 @@ class tgrFile:
              self.offset_flag) = struct.unpack("xBBx", in_fh.read(4))
             self.size = struct.unpack("HH", in_fh.read(4))
             self.hotspot = struct.unpack("HH", in_fh.read(4))
-            print(f'Image size: {self.size}')
-            
-            #print(self.offset_flag)
+            print(f'[Info] Total image size: {self.size}')
             self.indexed_colour = index_mode & 0x7f == 0x1a
             self.bounding_box = [*struct.unpack('HHHH',in_fh.read(8))]
             in_fh.seek(12, 1)
-            #if self.indexed_colour:
-            #    in_fh.seek(12, 1)
             for _ in range(self.framecount):
                 (ulx, uly, lrx, lry, offset) = struct.unpack("HHHHI", in_fh.read(12))
                 # Skip empty frames (offset will be zero)
                 if offset == 0:
                     self.framesizes.append((0, 0, 0))
                     self.frameoffsets.append(((0, 0), (0, 0)))
-                    print(f'Frame {_} is a padding frame. Leave frame as-is to avoid packing errors')
+                    print(f'[Info] Frame {_} is a padding frame. Leave frame as-is to avoid packing errors')
                 else:
                     self.framesizes.append((1+lrx-ulx, 1+lry-uly, offset))
                     self.frameoffsets.append(((ulx, uly), (lrx, lry)))
@@ -303,7 +299,7 @@ class tgrFile:
         with open(self.filename, "rb") as in_fh:
             in_fh.seek(palt.data_offset)
             (count,) = struct.unpack("<H", in_fh.read(2))
-            print(f'Colors in Palette: {count}')
+            print(f'[Info] {count} colors in image palette')
             for _ in range(count):
                 raw_pixel = in_fh.read(2)
                 if len(raw_pixel) < 2:
@@ -324,7 +320,7 @@ class tgrFile:
             try:
                 return self.palette[pixel_ix].copy()
             except IndexError:
-                print("Warning: IndexError when copying pixel from palette, replacing with transparency")
+                print("[Warning] IndexError when copying pixel from palette, replacing with transparency")
                 return Pixel(0, 0, 0, 0)
         else:
             (raw_pixel,) = struct.unpack("H", in_fh.read(2))
