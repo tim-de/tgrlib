@@ -115,74 +115,83 @@ string IndColorComment ( IND_PIXEL &p ) {
 
 typedef struct {
     BigEndian();
-    //local uchar run_header = ReadUByte() >> 5;
-    switch(ReadUByte() >> 5) {
-        case 0b000:     // Transparent spacing pixels
-            ubyte run_type : 3 <comment="Transparent Padding">;
-            ubyte ct_transparent_pixels : 5;
-            break;
-        case 0b001:     // Run length encoded run of pixels
-            ubyte run_type : 3 <comment="RLE single-color run">;
-            ubyte run_length : 5;
-            if (HEDR.bit_depth == 8) {
-                IND_PIXEL ind_pixel;
-            } else {
-                IMM_PIXEL pixel;
-            }
-            break;
-        case 0b010:     // Unencoded run of pixels
-            ubyte run_type : 3 <comment="RLE multi-color run">;
-            ubyte run_length : 5;
-            if (HEDR.bit_depth == 8) {
-                IND_PIXEL ind_pixels[run_length];
-            } else {
-                IMM_PIXEL pixels[run_length];
-            }
-            break;
-        case 0b011:     // Run length encoded run of translucent/glowing colored pixels
-            ubyte run_type : 3 <comment="RLE single-color run with alpha">;
-            ubyte run_length : 5;
-            ubyte alpha;
-            if (HEDR.bit_depth == 8) {
-                IND_PIXEL ind_pixel;
-            } else {
-                IMM_PIXEL pixel;
-            }
-            break;
-        case 0b100:     // Sets the brightness of a single translucent pixel
-            ubyte run_type : 3 <comment="Single pixel with alpha">;
-            ubyte alpha : 5 <comment=Str("24bit alpha: %i", this*255/31)>;
-            if (HEDR.bit_depth == 8) {
-                IND_PIXEL ind_pixel;
-            } else {
-                IMM_PIXEL pixel;
-            }
-            break;
-        case 0b101:     // Shadow pixels in sprites
-            ubyte run_type : 3 <comment="Shadow pixels">;
-            ubyte ct_shadow_pixels : 5;
-            break;
-        case 0b110:     // One Player Color pixel
-            ubyte run_type : 3 <comment="Single player-colored pixel", bgcolor=cRed>;
-            ubyte player_color : 5;
-            break;
-        case 0b111:     // Run Length encoded run of player color pixels
-            local ubyte flag = ReadByte();
-            if ((flag & 0b00011111) > 0b11011) {
-                ubyte run_type : 3 <comment="RLE player-pixel run">;
-                ubyte fixed_bits : 3;
-                ubyte ix_l : 2;
-                ubyte ix_h : 3 <comment="Use (ix_h<<2)|ix_l for correct index">;
-                ubyte alpha : 5;
-            } else {
-                ubyte run_type : 3;
-                ubyte run_length : 5;                
-                PLYR_PIXEL player_pixels[(run_length + 1) >> 1];  // Since each byte holds 2 pixels, divide taking the ceiling 
-            }
-            break;
-        default:
-            ubyte unknown_flag;
-            break;
+    local uchar run_header = ReadUByte();
+    if (run_header >= 0xF8 && run_header <= 0xFF) {
+        ubyte unknown_data[2];
+    } else {
+        switch(run_header >> 5) {
+            case 0b000:     // Transparent spacing pixels
+                ubyte run_type : 3 <comment="Transparent Padding">;
+                ubyte ct_transparent_pixels : 5;
+                break;
+            case 0b001:     // Run length encoded run of pixels
+                ubyte run_type : 3 <comment="RLE single-color run">;
+                ubyte run_length : 5;
+                if (HEDR.bit_depth == 8) {
+                    IND_PIXEL ind_pixel;
+                } else {
+                    IMM_PIXEL pixel;
+                }
+                break;
+            case 0b010:     // Unencoded run of pixels
+                ubyte run_type : 3 <comment="RLE multi-color run">;
+                ubyte run_length : 5;
+                if (HEDR.bit_depth == 8) {
+                    IND_PIXEL ind_pixels[run_length];
+                } else {
+                    IMM_PIXEL pixels[run_length];
+                }
+                break;
+            case 0b011:     // Run length encoded run of translucent
+                ubyte run_type : 3 <comment="RLE single-color run with alpha">;
+                ubyte run_length : 5;
+                
+                if (run_length >= 24) {
+                    
+                } else {
+                    ubyte alpha;
+                    if (HEDR.bit_depth == 8) {
+                        IND_PIXEL ind_pixel;
+                    } else {
+                        IMM_PIXEL pixel;
+                    }
+                }
+                break;
+            case 0b100:     // Sets the brightness of a single translucent pixel
+                ubyte run_type : 3 <comment="Single pixel with alpha">;
+                ubyte alpha : 5 <comment=Str("24bit alpha: %i", this*255/31)>;
+                if (HEDR.bit_depth == 8) {
+                    IND_PIXEL ind_pixel;
+                } else {
+                    IMM_PIXEL pixel;
+                }
+                break;
+            case 0b101:     // Shadow pixels in sprites
+                ubyte run_type : 3 <comment="Shadow pixels">;
+                ubyte ct_shadow_pixels : 5;
+                break;
+            case 0b110:     // One Player Color pixel
+                ubyte run_type : 3 <comment="Single player-colored pixel", bgcolor=cRed>;
+                ubyte player_color : 5;
+                break;
+            case 0b111:     // Run Length encoded run of player color pixels
+                local ubyte flag = ReadByte();
+                if ((flag & 0b00011111) > 0b11011) {
+                    ubyte run_type : 3 <comment="RLE player-pixel run">;
+                    ubyte fixed_bits : 3;
+                    ubyte ix_l : 2;
+                    ubyte ix_h : 3 <comment="Use (ix_h<<2)|ix_l for correct index">;
+                    ubyte alpha : 5;
+                } else {
+                    ubyte run_type : 3;
+                    ubyte run_length : 5;                
+                    PLYR_PIXEL player_pixels[(run_length + 1) >> 1];  // Since each byte holds 2 pixels, divide taking the ceiling 
+                }
+                break;
+            default:
+                ubyte unknown_flag;
+                break;
+        }
     }
 } RUN;
 
@@ -227,8 +236,18 @@ typedef struct {
     
     
     //ubyte line_data[total_line_length - ct_header_bytes]; // (-ct_header_bytes) to account for size of header
-} LINE <optimize=false>;
+} LINE <optimize=false/*, size=SizeLINE*/>;
 
+
+int SizeLINE( LINE &line ) {
+    local ubyte length_1 = ReadUByte( startof(line) );
+    local int total_line_length = length_1;
+    if ((length_1 >> 7) == 1) {  
+        local ubyte length_2 = ReadUByte( startof(line) + 1 ); // length of line in bytes, including header
+        total_line_length = ((length_1 & 0b01111111) << 8) | length_2;  // combines both bytes and strips the flag bit
+    }
+    return total_line_length;
+}
 
 typedef struct {
     char chunk_name[4];
@@ -251,7 +270,7 @@ typedef struct {
         default:
             local int bytes_used = 0;
             while (bytes_used < chunk_length) {
-                if (chunk_length - bytes_used < 4) {
+                if (chunk_length - bytes_used < 4 && ReadUByte() == 0) {
                     ubyte padding[chunk_length - bytes_used];
                     bytes_used += sizeof(padding);
                 } else {
