@@ -134,8 +134,9 @@ class MyAction(argparse.Action):
 
 ## Define parsers
 main_parse = argparse.ArgumentParser(prog="tgrtool")
+main_parse.add_argument('--no-gui', action='store_true', help='run tgrtool through its command-line interface')
 
-sub_parsers = main_parse.add_subparsers(required=True, help="available commands")
+sub_parsers = main_parse.add_subparsers(help="available commands")
 
 unpack_parse = sub_parsers.add_parser("unpack")
 unpack_parse.set_defaults(func=unpack)
@@ -158,27 +159,15 @@ pack_parse.add_argument('--portrait', choices=('large','small'), default=None, t
 pack_parse.add_argument('source', type=str, help='path to file or directory to unpack', nargs='+', action=MyAction)
 
 if __name__ == '__main__':
-# =============================================================================
-#     if tgrlib.is_exe:
-#         print('Welcome to TGR Tool. Please enter a command, or type "--help" for help, or "exit" to exit')
-#         
-#         while True:
-#             command = input('tgrtool > ')
-#         
-#             if command.lower() == 'exit':
-#                 print('Exiting')
-#                 break
-#             try:              
-#                 args = main_parse.parse_args(command.split(' '))
-#                 args.func(args)
-#             except SystemExit:
-#                 print('')
-#     else:
-# =============================================================================
-        app = QtWidgets.QApplication(sys.argv)
-        main_window = interface.MainWindow()
-        main_window.show()
-        app.exec()
-        
-        #args = main_parse.parse_args()
-        #args.func(args)
+        args = main_parse.parse_args()
+        if args.no_gui:
+            if hasattr(args, 'func'):
+                args.func(args)
+            else:
+                print("usage: tgrtool [-h] [--no-gui] {unpack,pack} ...\ntgrtool: error: the following arguments are required: {unpack,pack}")
+                exit()
+        else:
+            app = QtWidgets.QApplication(sys.argv)
+            main_window = interface.MainWindow()
+            main_window.show()
+            app.exec()

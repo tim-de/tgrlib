@@ -16,6 +16,7 @@ import tgrlib
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
+        self.setWindowTitle("tgrtool v")
         
         self.central_widget = QtWidgets.QWidget()
         central_layout = QtWidgets.QVBoxLayout()
@@ -183,16 +184,19 @@ class PackWidget(QtWidgets.QWidget):
             
     
     def packTGR(self):
+        output = FileDialog(forOpen=False, default_name=self.filename.stem, default_extension=".tgr")
+        if not output:
+            return
         args = Namespace(color=self.settings.color.currentIndex()+1,
                          no_crop=(not self.settings.crop.isChecked()),
                          portrait=(self.settings.portrait_size.value() if self.settings.portrait_mode.isChecked() else None),
-                         output=None,
+                         output=Path(output[0]),
                          config=None,
                          verbose=False,
                          source=self.filename)
         
         print(f"args: {args}")
-        tgrtool.unpack(args)
+        tgrtool.pack(args)
 
 
 class PackSettings(QtWidgets.QWidget):
@@ -212,11 +216,8 @@ class PackSettings(QtWidgets.QWidget):
         
         self.crop = QtWidgets.QCheckBox(text="Crop Transparency", parent=self)
         self.crop.setChecked(True)
-        self.fx_error_fix = QtWidgets.QCheckBox(text='FX Error Fix', parent=self)
-        self.fx_error_fix.setChecked(False)
         row2 = QtWidgets.QHBoxLayout()
         row2.addWidget(self.crop)
-        row2.addWidget(self.fx_error_fix)
         layout.addLayout(row2)
         
         self.portrait_mode = QtWidgets.QCheckBox(text='Portrait Mode', parent=self)
