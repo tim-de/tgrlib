@@ -31,6 +31,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pack_widget = PackWidget(self)
         self.widget_switcher.addWidget(self.pack_widget)
         
+        self.menu_bar.unpack_button.clicked.connect(lambda: self.switchWidget('unpack_widget'))
+        self.menu_bar.pack_button.clicked.connect(lambda: self.switchWidget('pack_widget'))
+        
         self.switchWidget('unpack_widget')
     
     def switchWidget(self, target):
@@ -54,7 +57,7 @@ class UnpackWidget(QtWidgets.QWidget):
     def __init__(self, parent):
         super(UnpackWidget, self).__init__(parent)
         self.settings = UnpackSettings(self)
-        self.preview = UnpackPreview(self)
+        self.preview = Preview(self)
         layout = QtWidgets.QHBoxLayout()
         layout.addWidget(self.settings)
         layout.addWidget(self.preview)
@@ -106,17 +109,6 @@ class UnpackWidget(QtWidgets.QWidget):
 #         print(f"parsed args: {parsed_args}")
 #         parsed_args.func(parsed_args)
 # =============================================================================
-            
-        
-
-class PackWidget(QtWidgets.QWidget):
-    def __init__(self, parent):
-        super(PackWidget, self).__init__(parent)
-        self.settings = UnpackSettings(self)
-        layout = QtWidgets.QHBoxLayout()
-        layout.addWidget(self.settings)
-        self.setLayout(layout)
-
         
 class UnpackSettings(QtWidgets.QWidget):
     def __init__(self, parent):
@@ -163,10 +155,96 @@ class UnpackSettings(QtWidgets.QWidget):
             self.frame_index.setEnabled(True)
         else:
             self.frame_index.setEnabled(False)
+        
 
-class UnpackPreview(QtWidgets.QWidget):
+class PackWidget(QtWidgets.QWidget):
     def __init__(self, parent):
-        super(UnpackPreview, self).__init__(parent)
+        super(PackWidget, self).__init__(parent)
+        self.settings = PackSettings(self)
+        self.preview = Preview(self)
+        layout = QtWidgets.QHBoxLayout()
+        layout.addWidget(self.settings)
+        layout.addWidget(self.preview)
+        self.setLayout(layout)
+        self.settings.select_folder.clicked.connect(self.selectFolder)
+        self.settings.select_folder.clicked.connect(self.preview.render)
+        self.settings.pack_button.clicked.connect(self.packTGR)
+    
+    def selectFolder(self):
+        filename = FileDialog(isFolder=True)
+        print(f'filename: {filename}')
+        if filename:
+            print('valid file')
+            self.filename = Path(filename[0])
+            print(self.filename)
+            self.settings.select_folder.setText(self.filename.stem)
+            # get frame count from header to update frame_index max value
+            self.tgr = tgrlib.tgrFile(self.filename)
+            
+    
+    def packTGR(self):
+        args = Namespace(color=self.settings.color.currentIndex()+1,
+                         no_crop=(not self.settings.crop.isChecked()),
+                         portrait=(self.settings.portrait_size.value() if self.settings.portrait_mode.isChecked() else None),
+                         output=None,
+                         config=None,
+                         verbose=False,
+                         source=self.filename)
+        
+        print(f"args: {args}")
+        tgrtool.unpack(args)
+
+
+class PackSettings(QtWidgets.QWidget):
+    def __init__(self, parent):
+        super(PackSettings, self).__init__(parent)
+        layout = QtWidgets.QVBoxLayout()
+        
+        self.select_folder = QtWidgets.QPushButton('Select Source Folder')
+        layout.addWidget(self.select_folder)
+        
+        self.color = QtWidgets.QComboBox()
+        self.color.addItems(['Red', 'Blue', 'Green', 'Black', 'Orange', 'Purple', 'Cyan', 'Brown', 'Light Gray', 'Gold', 'Dark Gray',])
+        row1 = QtWidgets.QHBoxLayout()
+        row1.addWidget(QtWidgets.QLabel('Sprite Color'))
+        row1.addWidget(self.color)
+        layout.addLayout(row1)
+        
+        self.crop = QtWidgets.QCheckBox(text="Crop Transparency", parent=self)
+        self.crop.setChecked(True)
+        self.fx_error_fix = QtWidgets.QCheckBox(text='FX Error Fix', parent=self)
+        self.fx_error_fix.setChecked(False)
+        row2 = QtWidgets.QHBoxLayout()
+        row2.addWidget(self.crop)
+        row2.addWidget(self.fx_error_fix)
+        layout.addLayout(row2)
+        
+        self.portrait_mode = QtWidgets.QCheckBox(text='Portrait Mode', parent=self)
+        self.portrait_mode.setChecked(False)
+        self.portrait_mode.stateChanged.connect(self.toggle_portrait_mode)
+        self.portrait_size = QtWidgets.QComboBox()
+        self.portrait_size.addItems(["small", "large",])
+        self.portrait_size.setEnabled(False)
+        row3 = QtWidgets.QHBoxLayout()
+        row3.addWidget(self.portrait_mode)
+        row3.addWidget(self.portrait_size)
+        layout.addLayout(row3)
+        
+        self.pack_button = QtWidgets.QPushButton('Pack to TGR File')
+        layout.addWidget(self.pack_button)
+        
+        self.setLayout(layout)
+    
+    def toggle_portrait_mode(self, state):
+        if state == 2:
+            self.portrait_size.setEnabled(True)
+        else:
+            self.portrait_size.setEnabled(False)
+
+
+class Preview(QtWidgets.QWidget):
+    def __init__(self, parent):
+        super(Preview, self).__init__(parent)
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(QtWidgets.QLabel('Preview'))
         self.sprite_display = QtWidgets.QLabel()
@@ -174,19 +252,27 @@ class UnpackPreview(QtWidgets.QWidget):
         self.setLayout(layout)
         
     def render(self):
+        # prevent attempt to render when no file has been selected
+        if not hasattr(self.parent(), 'tgr'):
+            return
         print('Rendering thumbnail ... ', end='')
-        self.parent().tgr.load()
-        preview = tgrtool.unpack_frame(self.parent().tgr,
-                                     0,
-                                     color=self.parent().settings.color.currentIndex()+1,
-                                     )
+        mode = self.parent().tgr.read_from
+        if mode == '.TGR':
+            self.parent().tgr.load()
+            preview = tgrtool.unpack_frame(self.parent().tgr,
+                                         0,
+                                         color=self.parent().settings.color.currentIndex()+1,
+                                         )
+        elif mode in ('.PNG', '', ):
+            preview = self.parent().tgr.imgs[0]
+            
         img_buffer = BytesIO()
         preview.save(img_buffer, format='PNG')
         pixmap = QtGui.QPixmap()
         pixmap.loadFromData(img_buffer.getvalue())
         self.sprite_display.setPixmap(pixmap)
-        print('finished!')  
-        
+        print('finished!')
+
 
 def FileDialog(directory=None, forOpen=True, isFolder=False, multiple=False, filters=("Kohan Graphical Assets (*.tgr)",), default_name=None, default_extension=None):
     print(directory)
