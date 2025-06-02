@@ -178,7 +178,7 @@ class tgrFile:
     A class representing a .TGR game asset file,
     which as a format is based on the IFF file structure
     """
-    def __init__(self, filename: str, is_sprite=False):
+    def __init__(self, filename: str):
         self.filename = Path(filename)
         self.read_from = self.filename.suffix.upper()
         #self.read_from = read_from
@@ -219,7 +219,6 @@ class tgrFile:
                 print(f"Error: invalid read type {self.read_from}")
                 
         self.size: typing.Tuple[int, int] = (0,0)
-        self.is_sprite = is_sprite
         self.framesizes = []
         self.frameoffsets = []
         self.frames = []

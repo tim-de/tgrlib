@@ -75,7 +75,7 @@ class UnpackWidget(QtWidgets.QWidget):
             print(self.filename)
             self.settings.select_tgr.setText(self.filename.stem)
             # get frame count from header to update frame_index max value
-            self.tgr = tgrlib.tgrFile(self.filename, is_sprite=False)
+            self.tgr = tgrlib.tgrFile(self.filename)
             self.tgr.iff.load()
             if self.tgr.iff.data.formtype != "TGAR":
                 print(f"Error: invalid file type: {self.iff.data.formtype}")

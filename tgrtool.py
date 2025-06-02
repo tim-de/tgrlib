@@ -15,7 +15,7 @@ def unpack(args: argparse.Namespace):
     image_path = args.source
     print(f"[Info] extracting data from {Path(image_path).resolve()}")
     player_color = args.color
-    imagefile = tgrlib.tgrFile(image_path, False)
+    imagefile = tgrlib.tgrFile(image_path)
     imagefile.load()
 
     if args.output != None:
