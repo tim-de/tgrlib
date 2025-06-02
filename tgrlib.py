@@ -433,7 +433,7 @@ class tgrFile:
     def read_config(self, config_path: str|None=None):
         config = ConfigParser()
         if not config_path:
-            config_path = f"{self.filename} / 'sprite.ini'"
+            config_path = f"{self.filename}/sprite.ini"
         config.read(config_path)
         self.bits_per_px = int(config['BitDepth']['Depth'])
         self.hotspot = (int(config['HotSpot']['X']), int(config['HotSpot']['Y']))
