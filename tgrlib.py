@@ -178,7 +178,7 @@ class tgrFile:
     A class representing a .TGR game asset file,
     which as a format is based on the IFF file structure
     """
-    def __init__(self, filename: str, is_sprite=False):
+    def __init__(self, filename: str):
         self.filename = Path(filename)
         self.read_from = self.filename.suffix.upper()
         #self.read_from = read_from
@@ -219,7 +219,6 @@ class tgrFile:
                 print(f"Error: invalid read type {self.read_from}")
                 
         self.size: typing.Tuple[int, int] = (0,0)
-        self.is_sprite = is_sprite
         self.framesizes = []
         self.frameoffsets = []
         self.frames = []
@@ -345,6 +344,7 @@ class tgrFile:
             (flag, run_length) = getRunData(run_header[0])
             if verbose:
                 print(f"\t\theader={run_header.hex()}")
+            #print(f'  reading flag {flag} at {line_ix}')
             
             if fx_error_fix:
                 if run_header[0] == 0xFD:
@@ -393,7 +393,7 @@ class tgrFile:
                     outbuf += [shadow for _ in range(run_length + increment)]
                 case 0b110:
                     #print(f"flag 6 at 0x{fh.tell()-1:08x}")
-                    outbuf.append(player_cols[color][run_length])
+                    outbuf.append(player_cols[color][run_length+1])
                     pixel_ix += 1
                 case 0b111:
                     # check if run or single translucent
@@ -404,7 +404,7 @@ class tgrFile:
                         alpha = byte & 31
                         color_index = (byte >> 3 & 0b11100) | (run_length & 3)
                         # create new pixel object to avoid shallow copying
-                        pixel = Pixel(*player_cols[color][color_index].values())
+                        pixel = Pixel(*player_cols[color][color_index+1].values())
                         pixel.alpha = round(alpha / 31 * 255)
                         outbuf.append(pixel.copy())
                         pixel_ix += 1
@@ -433,7 +433,7 @@ class tgrFile:
     def read_config(self, config_path: str|None=None):
         config = ConfigParser()
         if not config_path:
-            config_path = f"{self.filename} / 'sprite.ini'"
+            config_path = f"{self.filename}/sprite.ini"
         config.read(config_path)
         self.bits_per_px = int(config['BitDepth']['Depth'])
         self.hotspot = (int(config['HotSpot']['X']), int(config['HotSpot']['Y']))
@@ -518,7 +518,7 @@ class tgrFile:
     def look_ahead(self, p: Pixel, frame_index, line_index, pixel_ix, matching=True, color=None, translucent=False):
         collected = 0
         if matching:
-            if verbose and frame_index == 0:
+            if verbose:
                 print(f'frame_index:{frame_index} (max:{len(self.img_data)}) pixel:{pixel_ix + collected + 1} (max:{self.framesizes[frame_index][0]}) total:{line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1} (max:{len(self.img_data[frame_index])}) size_data:{self.framesizes[frame_index]}')
             while (pixel_ix + collected + 1 < self.framesizes[frame_index][0]):
                 next_pixel = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1])
@@ -536,16 +536,14 @@ class tgrFile:
         else:
             if pixel_ix == self.framesizes[frame_index][0] - 1:    # If last pixel in row:
                 return 1                        # Return 1 pixel, don't compare
-            while True:
-                if pixel_ix + collected >= self.framesizes[frame_index][0]:
-                    break
+            while (pixel_ix + collected + 1 < self.framesizes[frame_index][0]):
                 this_pixel = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected])
                 next_pixel = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1])
                 if this_pixel == next_pixel or this_pixel.alpha != 255:
                     break
                 if color and max_alpha(this_pixel) in player_cols[color].values():
                     break
-                if verbose and frame_index == 0:
+                if verbose:
                     print(f"\tLook_Ahead: pixel {this_pixel} at c:{pixel_ix + collected} doesn't match pixel {next_pixel} at c:{pixel_ix + collected + 1}")
                 collected += 1
                 if collected == 31:
@@ -596,7 +594,7 @@ class tgrFile:
             
             p = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix])
             if verbose:
-                print(f'reading p:{p} at l:{line_index} c:{pixel_ix}')
+                print(f'reading p:{p} at f:{frame_index}  l:{line_index} c:{pixel_ix}')
                 
             # Allows for offset to collect more than 31 pixels, set true once first non-padding pixel is reached
             if padding_complete == False and p != transparency:
