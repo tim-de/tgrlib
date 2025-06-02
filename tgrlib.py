@@ -518,7 +518,7 @@ class tgrFile:
     def look_ahead(self, p: Pixel, frame_index, line_index, pixel_ix, matching=True, color=None, translucent=False):
         collected = 0
         if matching:
-            if verbose and frame_index == 0:
+            if verbose:
                 print(f'frame_index:{frame_index} (max:{len(self.img_data)}) pixel:{pixel_ix + collected + 1} (max:{self.framesizes[frame_index][0]}) total:{line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1} (max:{len(self.img_data[frame_index])}) size_data:{self.framesizes[frame_index]}')
             while (pixel_ix + collected + 1 < self.framesizes[frame_index][0]):
                 next_pixel = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1])
@@ -536,16 +536,14 @@ class tgrFile:
         else:
             if pixel_ix == self.framesizes[frame_index][0] - 1:    # If last pixel in row:
                 return 1                        # Return 1 pixel, don't compare
-            while True:
-                if pixel_ix + collected >= self.framesizes[frame_index][0]:
-                    break
+            while (pixel_ix + collected + 1 < self.framesizes[frame_index][0]):
                 this_pixel = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected])
                 next_pixel = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1])
                 if this_pixel == next_pixel or this_pixel.alpha != 255:
                     break
                 if color and max_alpha(this_pixel) in player_cols[color].values():
                     break
-                if verbose and frame_index == 0:
+                if verbose:
                     print(f"\tLook_Ahead: pixel {this_pixel} at c:{pixel_ix + collected} doesn't match pixel {next_pixel} at c:{pixel_ix + collected + 1}")
                 collected += 1
                 if collected == 31:
@@ -596,7 +594,7 @@ class tgrFile:
             
             p = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix])
             if verbose:
-                print(f'reading p:{p} at l:{line_index} c:{pixel_ix}')
+                print(f'reading p:{p} at f:{frame_index}  l:{line_index} c:{pixel_ix}')
                 
             # Allows for offset to collect more than 31 pixels, set true once first non-padding pixel is reached
             if padding_complete == False and p != transparency:

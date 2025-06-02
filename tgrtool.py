@@ -88,6 +88,7 @@ def unpack_frame(tgr, frame_index, color=1, fx_error_fix=False, align_frames=Tru
 
 
 def pack(args: argparse.Namespace):
+    tgrlib.verbose = args.verbose
     imagefile = tgrlib.tgrFile(args.source)
     print(imagefile.imgs[0].mode)
     config_path = args.config if args.config else f"{args.source}/sprite.ini"
@@ -152,6 +153,7 @@ unpack_parse.add_argument('source', type=str, help='path to target tgr file', na
 pack_parse = sub_parsers.add_parser("pack")
 pack_parse.set_defaults(func=pack)
 pack_parse.add_argument('-c', '--color', choices=range(1,12), default=None, type=int, help='Specify the color list used for player-colored pixels. Pixels matching the list will be converted to player pixels')
+pack_parse.add_argument('-v', '--verbose', action='store_true', help='enable debugging printouts')
 pack_parse.add_argument('-o', '--output', type=str, help='destination file for packed data')
 pack_parse.add_argument('--config', type=str, help='path to sprite config file')
 pack_parse.add_argument('--no-crop', action='store_true', help='Disable automatic cropping of transparent background pixels')
