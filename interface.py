@@ -65,6 +65,9 @@ class UnpackWidget(QtWidgets.QWidget):
         self.setLayout(layout)
         self.settings.select_tgr.clicked.connect(self.selectTGR)
         self.settings.select_tgr.clicked.connect(self.preview.render)
+        self.settings.color.currentIndexChanged.connect(self.preview.render)
+        self.settings.single_frame.stateChanged.connect(self.preview.render)
+        self.settings.frame_index.valueChanged.connect(self.preview.render)
         self.settings.unpack_button.clicked.connect(self.unpackTGR)
     
     def selectTGR(self):
@@ -261,7 +264,7 @@ class Preview(QtWidgets.QWidget):
         if mode == '.TGR':
             self.parent().tgr.load()
             preview = tgrtool.unpack_frame(self.parent().tgr,
-                                         0,
+                                         (self.parent().settings.frame_index.value() if self.parent().settings.single_frame.isChecked() else 0),
                                          color=self.parent().settings.color.currentIndex()+1,
                                          )
         elif mode in ('.PNG', '', ):
