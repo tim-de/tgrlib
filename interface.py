@@ -16,7 +16,7 @@ import tgrlib
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
-        self.setWindowTitle("tgrtool v1.1.0")
+        self.setWindowTitle("tgrtool v1.1.1")
         
         self.central_widget = QtWidgets.QWidget()
         central_layout = QtWidgets.QVBoxLayout()
