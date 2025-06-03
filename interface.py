@@ -190,9 +190,9 @@ class PackWidget(QtWidgets.QWidget):
         output = FileDialog(forOpen=False, default_name=self.filename.stem, default_extension=".tgr")
         if not output:
             return
-        args = Namespace(color=self.settings.color.currentIndex()+1,
+        args = Namespace(color=(self.settings.color.currentIndex()+2 if self.settings.color.currentText() != 'None' else None),
                          no_crop=(not self.settings.crop.isChecked()),
-                         portrait=(self.settings.portrait_size.value() if self.settings.portrait_mode.isChecked() else None),
+                         portrait=(self.settings.portrait_size.currentText() if self.settings.portrait_mode.isChecked() else None),
                          output=Path(output[0]),
                          config=None,
                          verbose=1,
@@ -211,7 +211,7 @@ class PackSettings(QtWidgets.QWidget):
         layout.addWidget(self.select_folder)
         
         self.color = QtWidgets.QComboBox()
-        self.color.addItems(['Red', 'Blue', 'Green', 'Black', 'Orange', 'Purple', 'Cyan', 'Brown', 'Light Gray', 'Gold', 'Dark Gray',])
+        self.color.addItems(['None', 'Red', 'Blue', 'Green', 'Black', 'Orange', 'Purple', 'Cyan', 'Brown', 'Light Gray', 'Gold', 'Dark Gray',])
         row1 = QtWidgets.QHBoxLayout()
         row1.addWidget(QtWidgets.QLabel('Sprite Color'))
         row1.addWidget(self.color)
