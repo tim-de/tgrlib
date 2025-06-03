@@ -26,17 +26,17 @@ while True:
             file_path = folder[0] / file
             out_path = Path("./test") / file_path.relative_to(asset_path)
             #print(out_path)
-            args = Namespace(color=randint(0, 11),
+            args = Namespace(color=randint(1, 11),
                              no_align_frames=False,
                              fx_error_fix=True,
                              single_frame=-1,
                              output=out_path,
                              config=None,
-                             verbose=False,
+                             verbose=0,
                              source=file_path)
             try:
                 tgrtool.unpack(args)
-            except Exception:
-                print(f"Failed to extract {file_path}")
+            except Exception as e:
+                print(f"[{type(e)}: {e.args}] {file_path}")
     except StopIteration:
         break
