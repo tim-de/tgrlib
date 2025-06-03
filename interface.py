@@ -94,7 +94,7 @@ class UnpackWidget(QtWidgets.QWidget):
                          single_frame=(self.settings.frame_index.value() if self.settings.single_frame.isChecked() else -1),
                          output=None,
                          config=None,
-                         verbose=False,
+                         verbose=1,
                          source=self.filename)
         
         print(f"args: {args}")
@@ -195,7 +195,7 @@ class PackWidget(QtWidgets.QWidget):
                          portrait=(self.settings.portrait_size.value() if self.settings.portrait_mode.isChecked() else None),
                          output=Path(output[0]),
                          config=None,
-                         verbose=False,
+                         verbose=1,
                          source=self.filename)
         
         print(f"args: {args}")

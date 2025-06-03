@@ -13,7 +13,7 @@ import interface
 def unpack(args: argparse.Namespace):
     tgrlib.verbose = args.verbose
     image_path = args.source
-    print(f"[Info] extracting data from {Path(image_path).resolve()}")
+    print(f"[Info] extracting data from {Path(image_path).resolve()}") if tgrlib.verbose > 0 else None
     player_color = args.color
     imagefile = tgrlib.tgrFile(image_path)
     imagefile.load()
@@ -22,7 +22,7 @@ def unpack(args: argparse.Namespace):
         image_name = args.output
     else:
         image_name = Path(image_path).stem
-    print(f"[Info] writing data to {Path(image_name).resolve()}")
+    print(f"[Info] writing data to {Path(image_name).resolve()}") if tgrlib.verbose > 0 else None
     Path(image_name).mkdir(exist_ok=True, parents=True)
 
     frame_index = 0
@@ -40,7 +40,7 @@ def unpack(args: argparse.Namespace):
         if args.single_frame != -1 and args.single_frame != frame_index:
             continue
 
-        print(f"[Info] unpacking frame {frame_index} with size {frame.size}")
+        print(f"[Info] unpacking frame {frame_index} with size {frame.size}") if tgrlib.verbose > 0 else None
         image = unpack_frame(imagefile,
                              frame_index,
                              color=args.color,
@@ -90,7 +90,7 @@ def unpack_frame(tgr, frame_index, color=1, fx_error_fix=False, align_frames=Tru
 def pack(args: argparse.Namespace):
     tgrlib.verbose = args.verbose
     imagefile = tgrlib.tgrFile(args.source)
-    print(imagefile.imgs[0].mode)
+    #print(imagefile.imgs[0].mode)
     config_path = args.config if args.config else f"{args.source}/sprite.ini"
     
     if args.portrait != None:
@@ -122,7 +122,7 @@ def pack(args: argparse.Namespace):
             data += imagefile.encodeFrame(frame_index, color=args.color)
     data = imagefile.encodeHeader(data)
     data = imagefile.encodeForm(data)
-    print("writing to: ", outfile)
+    print("writing to: ", outfile) if tgrlib.verbose > 0 else None
     with open(outfile ,'wb') as fh_out:
         fh_out.write(data)
 
@@ -142,7 +142,7 @@ sub_parsers = main_parse.add_subparsers(help="available commands")
 unpack_parse = sub_parsers.add_parser("unpack")
 unpack_parse.set_defaults(func=unpack)
 unpack_parse.add_argument('-c', '--color', choices=range(1,12), default=2, type=int, help='use the specified player color for extracted sprites. Defaults to 2 (blue)')
-unpack_parse.add_argument('-v', '--verbose', action='store_true', help='enable debugging printouts')
+unpack_parse.add_argument('-v', '--verbose', action='count', default=0, help='enable levels of debugging printouts (add more v for higher verbosity)')
 unpack_parse.add_argument('--no-align-frames', action='store_true', help='disable frame alignment within image size')
 unpack_parse.add_argument('--single-frame', default=-1, type=int, help='extract only the specified frame')
 unpack_parse.add_argument('--fx-error-fix', action='store_true', help='use this if non-unit .TGR files have multicolored horizontal stripes in the output')
@@ -153,7 +153,7 @@ unpack_parse.add_argument('source', type=str, help='path to target tgr file', na
 pack_parse = sub_parsers.add_parser("pack")
 pack_parse.set_defaults(func=pack)
 pack_parse.add_argument('-c', '--color', choices=range(1,12), default=None, type=int, help='Specify the color list used for player-colored pixels. Pixels matching the list will be converted to player pixels')
-pack_parse.add_argument('-v', '--verbose', action='store_true', help='enable debugging printouts')
+pack_parse.add_argument('-v', '--verbose', action='count', default=0, help='enable levels of debugging printouts (add more v for higher verbosity)')
 pack_parse.add_argument('-o', '--output', type=str, help='destination file for packed data')
 pack_parse.add_argument('--config', type=str, help='path to sprite config file')
 pack_parse.add_argument('--no-crop', action='store_true', help='Disable automatic cropping of transparent background pixels')

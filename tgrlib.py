@@ -22,7 +22,7 @@ except Exception:
     is_exe = False
 
 #is_exe=True
-verbose = False
+verbose = 0
 
 frame_number_re = re.compile(r"fram_(\d{1,4})")
 
@@ -269,7 +269,7 @@ class tgrFile:
              self.offset_flag) = struct.unpack("xBBx", in_fh.read(4))
             self.size = struct.unpack("HH", in_fh.read(4))
             self.hotspot = struct.unpack("HH", in_fh.read(4))
-            print(f'[Info] Total image size: {self.size}')
+            print(f'[Info] Total image size: {self.size}') if verbose > 0 else None
             self.indexed_colour = index_mode & 0x7f == 0x1a
             self.bounding_box = [*struct.unpack('HHHH',in_fh.read(8))]
             in_fh.seek(12, 1)
@@ -279,7 +279,7 @@ class tgrFile:
                 if offset == 0:
                     self.framesizes.append((0, 0, 0))
                     self.frameoffsets.append(((0, 0), (0, 0)))
-                    print(f'[Info] Frame {_} is a padding frame. Leave frame as-is to avoid packing errors')
+                    print(f'[Info] Frame {_} is a padding frame. Leave frame as-is to avoid packing errors') if verbose > 0 else None
                 else:
                     self.framesizes.append((1+lrx-ulx, 1+lry-uly, offset))
                     self.frameoffsets.append(((ulx, uly), (lrx, lry)))
@@ -298,7 +298,7 @@ class tgrFile:
         with open(self.filename, "rb") as in_fh:
             in_fh.seek(palt.data_offset)
             (count,) = struct.unpack("<H", in_fh.read(2))
-            print(f'[Info] {count} colors in image palette')
+            print(f'[Info] {count} colors in image palette') if verbose > 0 else None
             for _ in range(count):
                 raw_pixel = in_fh.read(2)
                 if len(raw_pixel) < 2:
@@ -319,15 +319,14 @@ class tgrFile:
             try:
                 return self.palette[pixel_ix].copy()
             except IndexError:
-                print("[Warning] IndexError when copying pixel from palette, replacing with transparency")
+                print("[Warning] IndexError when copying pixel from palette, replacing with transparency") if verbose > 0 else None
                 return Pixel(0, 0, 0, 0)
         else:
             (raw_pixel,) = struct.unpack("H", in_fh.read(2))
             return Pixel.from_int(raw_pixel)
 
     def extractLine(self, fh: io.BufferedReader, frame_index=0, line_index=0, increment=0, color=2, fx_error_fix=False):
-        if verbose:
-            print(f"\tcalling extractLine with frame_index={frame_index}, line_index={line_index}, increment={increment}, color={color}, fx_error_fix={fx_error_fix}")
+        print(f"\tcalling extractLine with frame_index={frame_index}, line_index={line_index}, increment={increment}, color={color}, fx_error_fix={fx_error_fix}") if verbose > 1 else None
         outbuf = []
         line_ix = 0 # number of bytes read
         pixel_ix = 0 # number of pixels written
@@ -342,8 +341,7 @@ class tgrFile:
             run_header = fh.read(1)
             line_ix += 1
             (flag, run_length) = getRunData(run_header[0])
-            if verbose:
-                print(f"\t\theader={run_header.hex()}")
+            print(f"\t\theader={run_header.hex()}") if verbose > 1 else None
             #print(f'  reading flag {flag} at {line_ix}')
             
             if fx_error_fix:
@@ -397,8 +395,7 @@ class tgrFile:
                     pixel_ix += 1
                 case 0b111:
                     # check if run or single translucent
-                    if verbose:
-                        print(f'{line_index},{pixel_ix} ({line_ix}): reading 0b111 with run_length {run_length}')
+                    print(f'{line_index},{pixel_ix} ({line_ix}): reading 0b111 with run_length {run_length}') if verbose > 1 else None
                     if run_length > 27:
                         byte = fh.read(1)[0]
                         alpha = byte & 31
@@ -424,9 +421,9 @@ class tgrFile:
                                 outbuf.append(player_cols[color][((b << 1) & 0b11111) | 0b1])
                                 pixel_ix += 1                    
                 case _:
-                    print(f"{line_index:3d},{pixel_ix:3d}: Unsupported flag {flag} in datapoint 0x{run_header[0]:02x} at offset 0x{fh.tell()-1:08x}")
+                    print(f"[Error] {line_index:3d},{pixel_ix:3d}: Unsupported flag {flag} in datapoint 0x{run_header[0]:02x} at offset 0x{fh.tell()-1:08x}") if verbose > 0 else None
         if len(outbuf) < line.pixel_length:
-            print(f"Appending {line.pixel_length - len(outbuf)} pixels to line {line_index}")
+            print(f"[Warn] Appending {line.pixel_length - len(outbuf)} pixels to line {line_index}") if verbose > 0 else None
             outbuf += [transparency for _ in range(line.pixel_length - len(outbuf))]
         return outbuf
     
@@ -518,8 +515,7 @@ class tgrFile:
     def look_ahead(self, p: Pixel, frame_index, line_index, pixel_ix, matching=True, color=None, translucent=False):
         collected = 0
         if matching:
-            if verbose:
-                print(f'frame_index:{frame_index} (max:{len(self.img_data)}) pixel:{pixel_ix + collected + 1} (max:{self.framesizes[frame_index][0]}) total:{line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1} (max:{len(self.img_data[frame_index])}) size_data:{self.framesizes[frame_index]}')
+            print(f'frame_index:{frame_index} (max:{len(self.img_data)}) pixel:{pixel_ix + collected + 1} (max:{self.framesizes[frame_index][0]}) total:{line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1} (max:{len(self.img_data[frame_index])}) size_data:{self.framesizes[frame_index]}') if verbose > 2 else None
             while (pixel_ix + collected + 1 < self.framesizes[frame_index][0]):
                 next_pixel = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + collected + 1])
                 if p != next_pixel:
@@ -543,13 +539,11 @@ class tgrFile:
                     break
                 if color and max_alpha(this_pixel) in player_cols[color].values():
                     break
-                if verbose:
-                    print(f"\tLook_Ahead: pixel {this_pixel} at c:{pixel_ix + collected} doesn't match pixel {next_pixel} at c:{pixel_ix + collected + 1}")
+                print(f"\tLook_Ahead: pixel {this_pixel} at c:{pixel_ix + collected} doesn't match pixel {next_pixel} at c:{pixel_ix + collected + 1}") if verbose > 2 else None
                 collected += 1
                 if collected == 31:
                     break
-            if verbose:
-                print(f'      Look_Ahead: collected {collected} individual pixels')
+            print(f'\tLook_Ahead: collected {collected} individual pixels') if verbose > 2 else None
             return collected
     
     def encodeLineHeader(self, frame_index, line_index, outbuf, ct_pixels, offset=0):
@@ -579,8 +573,7 @@ class tgrFile:
         
         
     def encodeLine(self, frame_index=0, line_index=0, color=None):
-        if verbose:
-            print(f"image size:{self.size}")
+        #print(f"image size:{self.size}") if verbose > 1 else None
         pixel_ix = 0
         offset = 0      # Offset from edge of frame to first non-padding pixel
         ct_pixels = 0
@@ -589,20 +582,17 @@ class tgrFile:
         
         while pixel_ix < self.framesizes[frame_index][0]:
             if frame_index == 0:
-                if verbose:
-                    print(f'TOP OF LOOP: pixel_ix:{pixel_ix}')
+                print(f'TOP OF LOOP: pixel_ix:{pixel_ix}') if verbose > 2 else None
             
             p = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix])
-            if verbose:
-                print(f'reading p:{p} at f:{frame_index}  l:{line_index} c:{pixel_ix}')
+            print(f'reading p:{p} at f:{frame_index}  l:{line_index} c:{pixel_ix}') if verbose > 2 else None
                 
             # Allows for offset to collect more than 31 pixels, set true once first non-padding pixel is reached
             if padding_complete == False and p != transparency:
                 padding_complete = True
                 
             if p == transparency:        # Encode transparent pixels
-                if verbose:
-                    print(f'  chose flag 0b000')
+                print(f'  chose flag 0b000')  if verbose > 2 else None
                 run_length = self.look_ahead(p, frame_index, line_index, pixel_ix) + 1
                 # collect all leading padding
                 if not padding_complete:
@@ -613,10 +603,10 @@ class tgrFile:
                     break
                 else:
                     if run_length == 31:
-                        print(f'31 transparent pixels found, begining scan-ahead at l:{line_index} p:{pixel_ix}')
+                        print(f'31 transparent pixels found, begining scan-ahead at l:{line_index} p:{pixel_ix}') if verbose > 2 else None
                         collected = run_length
                         while pixel_ix + collected < self.framesizes[frame_index][0] and (ct := self.look_ahead(p, frame_index, line_index, pixel_ix + collected) + 1) == 31:
-                            print(f'   read {ct} more, total is {collected}')
+                            print(f'   read {ct} more, total is {collected}') if verbose > 2 else None
                             collected += ct
                         collected += ct  # ct won't have been added the final time
                         if pixel_ix + collected >= self.framesizes[frame_index][0]:
@@ -627,11 +617,9 @@ class tgrFile:
                     outbuf += struct.pack('<B', header)
                     pixel_ix += run_length
                     ct_pixels += run_length
-                    if verbose:
-                        print(f'  packing header {header:02X}')
+                    print(f'  packing header {header:02X}') if verbose > 2 else None
             
-                if verbose:
-                    print(f'  advanced to c:{pixel_ix}')
+                print(f'  advanced to c:{pixel_ix}') if verbose > 2 else None
                 
             elif p == shadow:
                 ct_shadow = self.look_ahead(p, frame_index, line_index, pixel_ix) + 1
@@ -662,10 +650,8 @@ class tgrFile:
                     
                     # encode opaque PP
                 else:
-                    if verbose:
-                        if frame_index == 0:
-                            print(f'matched pixel {p} in color list {color}')
-                        print('  chose flag 0b110')
+                    print(f'matched pixel {p} in color list {color}') if verbose > 2 else None
+                    print('  chose flag 0b110') if verbose > 2 else None
                     flag = 0b110 << 5
                     color_index = list(player_cols[color].keys())[list(player_cols[color].values()).index(p)]
                     header = flag + (color_index & 0b11111)
@@ -679,33 +665,27 @@ class tgrFile:
                 run_length = self.look_ahead(p, frame_index, line_index, pixel_ix, translucent=True) + 1
                 (r,g,b,a) = p.to_int()
                 if run_length == 1:
-                    if verbose:
-                        print(f'  chose flag 0b100')
+                    print(f'  chose flag 0b100') if verbose > 2 else None
                     flag = 0b100 << 5
                     header = flag + (a & 0b11111)
                     body = (r << 11) + (g << 5) + b
-                    if verbose:
-                        print(f"  packing header {header:02X} and body {body:04X}")
+                    print(f"  packing header {header:02X} and body {body:04X}") if verbose > 2 else None
                     outbuf += struct.pack('<BH', header, body)
                 else:
-                    if verbose:
-                        print(f'  chose flag 0b011')
+                    print(f'  chose flag 0b011') if verbose > 2 else None
                     flag = 0b011 << 5
                     header = flag + (run_length & 0b11111)
                     body = (r << 11) + (g << 5) + b
                     outbuf += struct.pack('<BBH', header, a, body)
-                    if verbose:
-                        print(f'  packing header {header:02X} alpha {a:02X} and body {body:04X}')
+                    print(f'  packing header {header:02X} alpha {a:02X} and body {body:04X}') if verbose > 2 else None
                 pixel_ix += run_length
                 ct_pixels += run_length
-                if verbose:
-                    print(f'  advanced to c:{pixel_ix}')
+                print(f'  advanced to c:{pixel_ix}') if verbose > 2 else None
                     
             else:                   # Encode opaque pixels
                 matching = self.look_ahead(p, frame_index, line_index, pixel_ix, color=color)
                 if matching:
-                    if verbose:
-                        print(f'  chose flag 0b001')
+                    print(f'  chose flag 0b001') if verbose > 2 else None
                     flag = 0b001 << 5
                     run_length = matching + 1
                     header = flag + (run_length & 0b11111)
@@ -714,44 +694,37 @@ class tgrFile:
                     outbuf += struct.pack('<BH', header, body)
                     pixel_ix += run_length
                     ct_pixels += run_length
-                    if verbose:
-                        print(f'  packing header {header:02X} and body {body:04X}\n  advanced to c:{pixel_ix}')
+                    print(f'  packing header {header:02X} and body {body:04X}\n  advanced to c:{pixel_ix}') if verbose > 2 else None
                 
                 else:
                     non_matching = self.look_ahead(p, frame_index, line_index, pixel_ix, matching=False, color=color)
                     if non_matching:
-                        if verbose:
-                            print(f'  chose flag 0b010')
+                        print(f'  chose flag 0b010') if verbose > 2 else None
                         run_length = non_matching
-                        if verbose:
-                            print(f'  found {run_length} unique pixels')
+                        print(f'  found {run_length} unique pixels') if verbose > 2 else None
                         flag = 0b010 << 5
                         header = flag + (run_length & 0b11111)
                         outbuf += struct.pack('<B', header)
-                        if verbose:
-                            print(f'  packing header {header:02X}')
+                        print(f'  packing header {header:02X}') if verbose > 2 else None
                         for i in range(0,run_length):
                             cur_pix = Pixel(*self.img_data[frame_index][line_index*self.framesizes[frame_index][0] + pixel_ix + i])
                             (r,g,b,a) = cur_pix.to_int()
-                            if verbose:
-                                print(f'    p:{cur_pix} r:{r} g:{g} b:{b} a:{a}')
+                            print(f'    p:{cur_pix} r:{r} g:{g} b:{b} a:{a}') if verbose > 2 else None
                             body = (r << 11) + (g << 5) + b
                             outbuf += struct.pack('<H', body)
-                            if verbose:
-                                print(f'    packing body:{body:04X}')
+                            print(f'    packing body:{body:04X}') if verbose > 2 else None
                         pixel_ix += run_length
                         ct_pixels += run_length
                     
                     else:
-                        print(f'f:{frame_index: >4} l:{line_index: >4} p:{pixel_ix} : could not pack {p}, defaulting to 0x0000')
+                        print(f'f:{frame_index: >4} l:{line_index: >4} p:{pixel_ix} : could not pack {p}, defaulting to 0x0000') if verbose > 2 else None
                         header = 0b01000001
                         pixel = 0x0000
                         outbuf += struct.pack('<BH', header, body)
                         pixel_ix += 1
                         ct_pixels += 1
                         
-                if verbose:
-                        print(f'  advanced to c:{pixel_ix}')
+                    print(f'  advanced to c:{pixel_ix}') if verbose > 2 else None
         
         return self.encodeLineHeader(frame_index, line_index, outbuf, ct_pixels, offset=offset)    
         
@@ -886,21 +859,21 @@ class tgrFile:
         elif portrait_size == "large":   # rescale to 220 X 220 (internal size of large frame)
             outW, outH, frame_width = 220, 220, 5
         else:
-            print(f'{out_size} is not a valid size')
+            print(f'[Error] {portrait_size} is not a valid size')
             sys.exit()
         
         if inH < (inW * outH / outW):   # if height less than width * inverse scaling factor
             crW = int(inH*outW/outH)    # set width equal to height, then scale to maintain AR
             crop = int((inW - crW) / 2)
             box = (crop ,0 ,inW - crop , inH)
-            print(f'Cropping width from {inW} to {crW} using bounding box {box}')
+            print(f'[Info] Cropping width from {inW} to {crW} using bounding box {box}') if verbose > 2 else None
         else:
             crH = int(inW*outH/outW)
             crop = int((inH - crH) / 2)
             box = (0 ,crop ,inW, inH - crop)
-            print(f'Cropping height from {inH} to {crH} using bounding box {box}')
+            print(f'[Info] Cropping height from {inH} to {crH} using bounding box {box}') if verbose > 2 else None
         
-        print(f'Resizing to {outW}x{outH}')
+        print(f'[Info] Resizing portrait to {outW}x{outH}') if verbose > 1 else None
         cropped_im = self.imgs[0].crop(box).resize((outW, outH))
         
         padding_im = Image.new('RGBA', (outW+2*frame_width,outH+2*frame_width))
