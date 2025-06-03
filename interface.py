@@ -16,7 +16,7 @@ import tgrlib
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
-        self.setWindowTitle("tgrtool v1.1.0")
+        self.setWindowTitle("tgrtool v1.1.1")
         
         self.central_widget = QtWidgets.QWidget()
         central_layout = QtWidgets.QVBoxLayout()
@@ -94,7 +94,7 @@ class UnpackWidget(QtWidgets.QWidget):
                          single_frame=(self.settings.frame_index.value() if self.settings.single_frame.isChecked() else -1),
                          output=None,
                          config=None,
-                         verbose=False,
+                         verbose=1,
                          source=self.filename)
         
         print(f"args: {args}")
@@ -190,12 +190,12 @@ class PackWidget(QtWidgets.QWidget):
         output = FileDialog(forOpen=False, default_name=self.filename.stem, default_extension=".tgr")
         if not output:
             return
-        args = Namespace(color=self.settings.color.currentIndex()+1,
+        args = Namespace(color=(self.settings.color.currentIndex()+2 if self.settings.color.currentText() != 'None' else None),
                          no_crop=(not self.settings.crop.isChecked()),
-                         portrait=(self.settings.portrait_size.value() if self.settings.portrait_mode.isChecked() else None),
+                         portrait=(self.settings.portrait_size.currentText() if self.settings.portrait_mode.isChecked() else None),
                          output=Path(output[0]),
                          config=None,
-                         verbose=False,
+                         verbose=1,
                          source=self.filename)
         
         print(f"args: {args}")
@@ -211,7 +211,7 @@ class PackSettings(QtWidgets.QWidget):
         layout.addWidget(self.select_folder)
         
         self.color = QtWidgets.QComboBox()
-        self.color.addItems(['Red', 'Blue', 'Green', 'Black', 'Orange', 'Purple', 'Cyan', 'Brown', 'Light Gray', 'Gold', 'Dark Gray',])
+        self.color.addItems(['None', 'Red', 'Blue', 'Green', 'Black', 'Orange', 'Purple', 'Cyan', 'Brown', 'Light Gray', 'Gold', 'Dark Gray',])
         row1 = QtWidgets.QHBoxLayout()
         row1.addWidget(QtWidgets.QLabel('Sprite Color'))
         row1.addWidget(self.color)
