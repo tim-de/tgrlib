@@ -393,7 +393,7 @@ class tgrFile:
                     outbuf += [shadow for _ in range(run_length + increment)]
                 case 0b110:
                     #print(f"flag 6 at 0x{fh.tell()-1:08x}")
-                    outbuf.append(player_cols[color][run_length+1])
+                    outbuf.append(player_cols[color][run_length])
                     pixel_ix += 1
                 case 0b111:
                     # check if run or single translucent
@@ -404,7 +404,7 @@ class tgrFile:
                         alpha = byte & 31
                         color_index = (byte >> 3 & 0b11100) | (run_length & 3)
                         # create new pixel object to avoid shallow copying
-                        pixel = Pixel(*player_cols[color][color_index+1].values())
+                        pixel = Pixel(*player_cols[color][color_index].values())
                         pixel.alpha = round(alpha / 31 * 255)
                         outbuf.append(pixel.copy())
                         pixel_ix += 1
