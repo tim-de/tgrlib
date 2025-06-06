@@ -7,6 +7,7 @@ from pathlib import Path
 from PIL import Image
 import sys
 from PyQt5 import QtWidgets
+from math import floor
 
 import interface
 
@@ -24,6 +25,21 @@ def unpack(args: argparse.Namespace):
         image_name = Path(image_path).stem
     print(f"[Info] writing data to {Path(image_name).resolve()}") if tgrlib.verbose > 0 else None
     Path(image_name).mkdir(exist_ok=True, parents=True)
+
+    if args.sprite_sheet:
+        width = 0
+        height = 0
+        row = 0
+        col = 0
+        cur_anim = 0
+        base_col = 0
+        for anim in imagefile.animations:
+            if anim[1] > width:
+                width = anim[1]
+            height += anim[2]
+        width *= imagefile.size[0]
+        height *= imagefile.size[1]
+        sprite_sheet = Image.new('RGBA', (width, height), (0,0,0,0))
 
     frame_index = 0
     #pixel_format = "RGBA"
@@ -47,7 +63,23 @@ def unpack(args: argparse.Namespace):
                              fx_error_fix=args.fx_error_fix,
                              align_frames=(not args.no_align_frames),
                              )
-        image.save(f"{image_name}/fram_{frame_index:04d}.png")
+        if args.sprite_sheet:
+            if imagefile.animations[cur_anim][0] + imagefile.animations[cur_anim][1] * imagefile.animations[cur_anim][2] <= frame_index: #no longer within current anim
+                cur_anim += 1
+                base_col = col + 1
+            
+            while imagefile.animations[cur_anim][1] == 0 and imagefile.animations[cur_anim][2] == 0: # skip empty animations
+                cur_anim += 1
+            
+            row = ((frame_index - imagefile.animations[cur_anim][0])  % imagefile.animations[cur_anim][1]) # mod fram by frames per animation
+            col = base_col + floor((frame_index - imagefile.animations[cur_anim][0]) / imagefile.animations[cur_anim][1])
+            sprite_sheet.paste(image, (row*imagefile.size[0], col*imagefile.size[1]))
+        else:
+            image.save(f"{image_name}/fram_{frame_index:04d}.png")
+    
+    if args.sprite_sheet:
+        sprite_sheet.save(f"{image_name}/sprite_sheet.png")
+    
     if args.config:
         config_path = args.config
     else:
@@ -143,6 +175,7 @@ unpack_parse = sub_parsers.add_parser("unpack")
 unpack_parse.set_defaults(func=unpack)
 unpack_parse.add_argument('-c', '--color', choices=range(1,12), default=2, type=int, help='use the specified player color for extracted sprites. Defaults to 2 (blue)')
 unpack_parse.add_argument('-v', '--verbose', action='count', default=0, help='enable levels of debugging printouts (add more v for higher verbosity)')
+unpack_parse.add_argument('--sprite-sheet', action='store_true', help='save images to a sprite sheet instead of individual files')
 unpack_parse.add_argument('--no-align-frames', action='store_true', help='disable frame alignment within image size')
 unpack_parse.add_argument('--single-frame', default=-1, type=int, help='extract only the specified frame')
 unpack_parse.add_argument('--fx-error-fix', action='store_true', help='use this if non-unit .TGR files have multicolored horizontal stripes in the output')

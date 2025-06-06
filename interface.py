@@ -92,6 +92,7 @@ class UnpackWidget(QtWidgets.QWidget):
                          no_align_frames=(not self.settings.align_frames.isChecked()),
                          fx_error_fix=self.settings.fx_error_fix.isChecked(),
                          single_frame=(self.settings.frame_index.value() if self.settings.single_frame.isChecked() else -1),
+                         sprite_sheet=self.settings.sprite_sheet.isChecked(),
                          output=None,
                          config=None,
                          verbose=1,
@@ -148,6 +149,10 @@ class UnpackSettings(QtWidgets.QWidget):
         row3.addWidget(self.single_frame)
         row3.addWidget(self.frame_index)
         layout.addLayout(row3)
+        
+        self.sprite_sheet = QtWidgets.QCheckBox(text="Save to Sprite Sheet", parent=self)
+        self.sprite_sheet.setChecked(False)
+        layout.addWidget(self.sprite_sheet)
         
         self.unpack_button = QtWidgets.QPushButton('Unpack TGR File')
         layout.addWidget(self.unpack_button)
