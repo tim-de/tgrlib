@@ -7,7 +7,6 @@ from pathlib import Path
 from PIL import Image
 import sys
 from PyQt5 import QtWidgets
-from math import floor
 
 import interface
 
@@ -15,9 +14,8 @@ def unpack(args: argparse.Namespace):
     tgrlib.verbose = args.verbose
     image_path = args.source
     print(f"[Info] extracting data from {Path(image_path).resolve()}") if tgrlib.verbose > 0 else None
-    player_color = args.color
-    imagefile = tgrlib.tgrFile(image_path)
-    imagefile.load()
+    tgr = tgrlib.tgrFile(image_path)
+    tgr.load()
 
     if args.output != None:
         image_name = args.output
@@ -29,41 +27,28 @@ def unpack(args: argparse.Namespace):
     if args.sprite_sheet:
         width = 0    # width of the sprite sheet in frames
         height = 0   # height of the sprite sheet in frames
-        col = 0      # current column position in frames
-        row = 0      # current row position in frames
-        cur_anim = 0 # index of the current animation being unpacked
-        base_row = 0 # row containing the 1st perspective angle of the current animation
-        for anim in imagefile.animations:
+        for anim in tgr.animations:
             if anim[1] > width:   # if animation's frame count is greater than the width:
                 width = anim[1]   # set the width to this animation's frame count
             height += anim[2]     # increase height by 1 for each view angle in this animation
-        width *= imagefile.size[0]  # scale width and height by the dimensions of an idividual frame
-        height *= imagefile.size[1]
+        width *= tgr.size[0]  # scale width and height by the dimensions of an idividual frame
+        height *= tgr.size[1]
         sprite_sheet = Image.new('RGBA', (width, height), (0,0,0,0))
 
-    for frame_index, frame in enumerate(imagefile.frames):
+    for frame_index, (frame, box) in enumerate(zip(tgr.frames, tgrlib.spriteSheetBoxIter(tgr.size, tgr.animations))):
         
         if args.single_frame != -1 and args.single_frame != frame_index:
             continue
         
         print(f"[Info] unpacking frame {frame_index} with size {frame.size}") if tgrlib.verbose > 0 else None
-        image = unpack_frame(imagefile,
+        image = unpack_frame(tgr,
                              frame_index,
                              color=args.color,
                              fx_error_fix=args.fx_error_fix,
-                             align_frames=(not args.no_align_frames),
-                             )
+                             align_frames=(not args.no_align_frames))
+        
         if args.sprite_sheet:
-            if imagefile.animations[cur_anim][0] + imagefile.animations[cur_anim][1] * imagefile.animations[cur_anim][2] <= frame_index: #no longer within current anim
-                cur_anim += 1
-                base_row = row + 1
-            
-            while imagefile.animations[cur_anim][1] == 0 and imagefile.animations[cur_anim][2] == 0: # skip empty animations
-                cur_anim += 1
-            
-            col = (frame_index - imagefile.animations[cur_anim][0]) % imagefile.animations[cur_anim][1] # mod fram by frames per animation
-            row = base_row + floor((frame_index - imagefile.animations[cur_anim][0]) / imagefile.animations[cur_anim][1])
-            sprite_sheet.paste(image, (col*imagefile.size[0], row*imagefile.size[1]))
+            sprite_sheet.paste(image, box)
         else:
             image.save(f"{image_name}/fram_{frame_index:04d}.png")
     
@@ -74,7 +59,7 @@ def unpack(args: argparse.Namespace):
         config_path = args.config
     else:
         config_path = f"{image_name}/sprite.ini"
-    imagefile.write_config(config_path)
+    tgr.write_config(config_path)
 
 # unpacks a single frame and returns it as a pillow image object
 def unpack_frame(tgr, frame_index, color=1, fx_error_fix=False, align_frames=True, pixel_format="RGBA"):
@@ -118,15 +103,13 @@ def unpack_frame(tgr, frame_index, color=1, fx_error_fix=False, align_frames=Tru
 
 def pack(args: argparse.Namespace):
     tgrlib.verbose = args.verbose
-    imagefile = tgrlib.tgrFile(args.source)
-    #print(imagefile.imgs[0].mode)
-    config_path = args.config if args.config else f"{args.source}/sprite.ini"
+    tgr = tgrlib.tgrFile(args.source)
     
     if args.portrait != None:
-        imagefile.resize(args.portrait)
-        imagefile.addPortraitFrame(args.portrait)
+        tgr.resize(args.portrait)
+        tgr.addPortraitFrame(args.portrait)
     
-    imagefile.load(config_path, args.no_crop)
+    tgr.load(args.config, args.no_crop)
     
     if args.output != '' and args.output != None:
         dest_path = Path(args.output)
@@ -134,23 +117,23 @@ def pack(args: argparse.Namespace):
             filename = dest_path.name
             dest_path = dest_path.parent
         else:
-            filename = imagefile.filename.stem + '.tgr'
+            filename = tgr.filename.stem + '.tgr'
             
         dest_path.mkdir(exist_ok=True, parents=True)
         outfile = dest_path / filename
     else:
-        outfile = imagefile.filename.stem + '.tgr'
+        outfile = tgr.filename.stem + '.tgr'
     
     data = b''
-    for frame_index in range(0,len(imagefile.img_data)):
-        if frame_index in imagefile.padding_frames:
-            imagefile.frameoffsets.append(0)
+    for frame_index in range(0,len(tgr.img_data)):
+        if frame_index in tgr.padding_frames:
+            tgr.frameoffsets.append(0)
             data += struct.pack('4sI', b'FRAM', 0)
         else:
-            imagefile.frameoffsets.append(len(data))
-            data += imagefile.encodeFrame(frame_index, color=args.color)
-    data = imagefile.encodeHeader(data)
-    data = imagefile.encodeForm(data)
+            tgr.frameoffsets.append(len(data))
+            data += tgr.encodeFrame(frame_index, color=args.color)
+    data = tgr.encodeHeader(data)
+    data = tgr.encodeForm(data)
     print("writing to: ", outfile) if tgrlib.verbose > 0 else None
     with open(outfile ,'wb') as fh_out:
         fh_out.write(data)
@@ -185,7 +168,7 @@ pack_parse.set_defaults(func=pack)
 pack_parse.add_argument('-c', '--color', choices=range(1,12), default=None, type=int, help='Specify the color list used for player-colored pixels. Pixels matching the list will be converted to player pixels')
 pack_parse.add_argument('-v', '--verbose', action='count', default=0, help='enable levels of debugging printouts (add more v for higher verbosity)')
 pack_parse.add_argument('-o', '--output', type=str, help='destination file for packed data')
-pack_parse.add_argument('--config', type=str, help='path to sprite config file')
+pack_parse.add_argument('--config', default=None, type=str, help='path to sprite config file')
 pack_parse.add_argument('--no-crop', action='store_true', help='Disable automatic cropping of transparent background pixels')
 pack_parse.add_argument('--portrait', choices=('large','small'), default=None, type=str, help='Specify the size of the portrait. Choose small for company/sidebar portraits, or large for campaign dialogue portraits')
 pack_parse.add_argument('source', type=str, help='path to file or directory to unpack', nargs='+', action=MyAction)

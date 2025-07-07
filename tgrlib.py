@@ -12,6 +12,7 @@ from pathlib import Path
 from PIL import Image
 from configparser import ConfigParser
 from collections import OrderedDict
+from math import floor
 
 # check if running as a PyInstaller exe
 try:
@@ -150,6 +151,48 @@ def decodePixel(half_word: int):
     red = round(((half_word >> 11) & 0b11111) / 31 * 255)
     return Pixel(red, green, blue)
 
+def spriteSheetBoxIter(size, animations):
+    """
+    Generator for frame selection within a sprite sheet.
+    Can be used both for pasting frames into a sprite sheet,
+    and for extracting frames from a sprite sheet.
+
+    Parameters
+    ----------
+    size : (width, height)
+        A 2-tuple containing the width and height of an individual frame in the sprite sheet.
+    animations : [[start_frame, frame_count, animation_count],...]
+        A list of up to 6 lists, each containing:
+            start_frame : the initial frame number of the animation sequence.
+            frame_count : the number of frames in a single isometric view of the animation.
+            animation_count : the number of distinct isometric view for the animation.
+
+    Yields
+    ------
+    box : (left, up, right, down)
+        A 4-tuple containing the upper-left an lower-right corners of the next frame in the sprite sheet.
+
+    """
+    total_frames = animations[-1][0] + animations[-1][1] * animations[-1][2]
+    col = 0      # current column position in frames
+    row = 0      # current row position in frames
+    cur_anim = 0 # index of the current animation being unpacked
+    base_row = 0 # row containing the 1st perspective angle of the current animation
+    
+    for frame_index in range(total_frames):
+        if animations[cur_anim][0] + animations[cur_anim][1] * animations[cur_anim][2] <= frame_index: #no longer within current anim
+            cur_anim += 1
+            base_row = row + 1
+        
+        while animations[cur_anim][1] == 0 and animations[cur_anim][2] == 0: # skip empty animations
+            cur_anim += 1
+        
+        col = (frame_index - animations[cur_anim][0]) % animations[cur_anim][1] # mod fram by frames per animation
+        row = base_row + floor((frame_index - animations[cur_anim][0]) / animations[cur_anim][1])
+        box = (col*size[0], row*size[1], (col+1)*size[0], (row+1)*size[1])
+        yield box    
+    
+
 class Line:
     def __init__(self, in_fh: io.BufferedReader, sprite=False):
         _ = sprite
@@ -178,16 +221,18 @@ class tgrFile:
     A class representing a .TGR game asset file,
     which as a format is based on the IFF file structure
     """
-    def __init__(self, filename: str):
+    def __init__(self, filename: str, from_sprite_sheet: bool=False, config_path: str|None=None,):
         self.filename = Path(filename)
         self.read_from = self.filename.suffix.upper()
-        #self.read_from = read_from
         match self.read_from:
             case '.TGR':
                 self.iff = ifflib.iff_file(self.filename)
             case '.PNG':
                 self.imgs = []
-                self.imgs.append(Image.open(self.filename))
+                if from_sprite_sheet:
+                    self.parse_sprite_sheet()
+                else:
+                    self.imgs.append(Image.open(self.filename))
             case '':
                 filelist = list(self.filename.glob('*'))
                 self.imgs = [None for _ in range(len(filelist))]
@@ -257,8 +302,16 @@ class tgrFile:
                         else:
                             self.framesizes.append([img.size[0], img.size[1], 0, 0, img.size[0]-1, img.size[1]-1])
                         self.img_data[index] = img.getdata()
-                    
-
+    
+    def parse_sprite_sheet(self, config_path: str|None=None):
+        # get image size from config
+        sprite_sheet = Image.open(self.filename)
+        if config_path is None:
+            config_path = self.filename.parent / "sprite.ini"
+        self.read_config(config_path)
+        for frame_index, box in enumerate(spriteSheetBoxIter(self.size, self.animations)):
+            self.imgs.append(sprite_sheet.crop(box))
+            
     def read_header(self):
         with open(self.filename, "rb") as in_fh:
             in_fh.seek(self.iff.data.children[0].data_offset)
@@ -429,8 +482,9 @@ class tgrFile:
     
     def read_config(self, config_path: str|None=None):
         config = ConfigParser()
-        if not config_path:
-            config_path = f"{self.filename}/sprite.ini"
+        if config_path is None:
+            config_path = (self.filename.parent if self.filename.is_file() else self.filename) / "sprite.ini"
+        print(f"[Info] reading config from {config_path}") if verbose > 1 else None
         config.read(config_path)
         self.bits_per_px = int(config['BitDepth']['Depth'])
         self.hotspot = (int(config['HotSpot']['X']), int(config['HotSpot']['Y']))
@@ -438,8 +492,6 @@ class tgrFile:
         self.bounding_box = (int(config['BoundingBox']['XMin']), int(config['BoundingBox']['YMin']), int(config['BoundingBox']['XMax']), int(config['BoundingBox']['YMax']))
         if len(config['PaddingFrames']['FrameList']) > 0:
             self.padding_frames = list(map(int, config['PaddingFrames']['FrameList'].split(',')))
-        #else:
-        #    self.padding_frames = []
         
         self.animations = [(0, 0, 0, 0) for _ in range(6)]
         self.anim_count = 0
@@ -454,9 +506,6 @@ class tgrFile:
                 self.animations[anim_number] = (int(config[f'Animation{anim_number}']['StartFrame']), int(config[f'Animation{anim_number}']['FrameCount']), int(config[f'Animation{anim_number}']['AnimationCount']))
         
         self.animations = self.animations[:self.anim_count]
-        # print(self.anim_count, self.animations)
-            
-        
     
     def write_config(self, config_path: str|None=None):
         if config_path == None:
