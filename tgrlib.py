@@ -287,7 +287,7 @@ class tgrFile:
             self.anim_count = struct.unpack('H',in_fh.read(2))[0]
             self.animations = []
             for _ in range(self.anim_count):
-                #(start_frame, frame_count, frame_rate) = struct.unpack('HHH', in_fh.read(6))
+                #(start_frame, frame_count, animation_count) = struct.unpack('HHH', in_fh.read(6))
                 self.animations.append([*struct.unpack('HHH', in_fh.read(6))])
                 
         #print(len(self.framesizes))

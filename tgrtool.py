@@ -27,35 +27,25 @@ def unpack(args: argparse.Namespace):
     Path(image_name).mkdir(exist_ok=True, parents=True)
 
     if args.sprite_sheet:
-        width = 0
-        height = 0
-        row = 0
-        col = 0
-        cur_anim = 0
-        base_col = 0
+        width = 0    # width of the sprite sheet in frames
+        height = 0   # height of the sprite sheet in frames
+        col = 0      # current column position in frames
+        row = 0      # current row position in frames
+        cur_anim = 0 # index of the current animation being unpacked
+        base_row = 0 # row containing the 1st perspective angle of the current animation
         for anim in imagefile.animations:
-            if anim[1] > width:
-                width = anim[1]
-            height += anim[2]
-        width *= imagefile.size[0]
+            if anim[1] > width:   # if animation's frame count is greater than the width:
+                width = anim[1]   # set the width to this animation's frame count
+            height += anim[2]     # increase height by 1 for each view angle in this animation
+        width *= imagefile.size[0]  # scale width and height by the dimensions of an idividual frame
         height *= imagefile.size[1]
         sprite_sheet = Image.new('RGBA', (width, height), (0,0,0,0))
 
-    frame_index = 0
-    #pixel_format = "RGBA"
     for frame_index, frame in enumerate(imagefile.frames):
-        
-        # Check for padding (blank) frames
-        if frame.size == (0, 0,):
-            #print(f'padding frame {frame_index}')
-            imagefile.padding_frames.append(frame_index)
-            image = Image.new('RGBA',(1,1),(0,0,0,0))
-            image.save(f"{image_name}/fram_{frame_index:04d}.png")
-            continue            
         
         if args.single_frame != -1 and args.single_frame != frame_index:
             continue
-
+        
         print(f"[Info] unpacking frame {frame_index} with size {frame.size}") if tgrlib.verbose > 0 else None
         image = unpack_frame(imagefile,
                              frame_index,
@@ -66,14 +56,14 @@ def unpack(args: argparse.Namespace):
         if args.sprite_sheet:
             if imagefile.animations[cur_anim][0] + imagefile.animations[cur_anim][1] * imagefile.animations[cur_anim][2] <= frame_index: #no longer within current anim
                 cur_anim += 1
-                base_col = col + 1
+                base_row = row + 1
             
             while imagefile.animations[cur_anim][1] == 0 and imagefile.animations[cur_anim][2] == 0: # skip empty animations
                 cur_anim += 1
             
-            row = ((frame_index - imagefile.animations[cur_anim][0])  % imagefile.animations[cur_anim][1]) # mod fram by frames per animation
-            col = base_col + floor((frame_index - imagefile.animations[cur_anim][0]) / imagefile.animations[cur_anim][1])
-            sprite_sheet.paste(image, (row*imagefile.size[0], col*imagefile.size[1]))
+            col = (frame_index - imagefile.animations[cur_anim][0]) % imagefile.animations[cur_anim][1] # mod fram by frames per animation
+            row = base_row + floor((frame_index - imagefile.animations[cur_anim][0]) / imagefile.animations[cur_anim][1])
+            sprite_sheet.paste(image, (col*imagefile.size[0], row*imagefile.size[1]))
         else:
             image.save(f"{image_name}/fram_{frame_index:04d}.png")
     
@@ -91,6 +81,13 @@ def unpack_frame(tgr, frame_index, color=1, fx_error_fix=False, align_frames=Tru
     imagedata = b""
     with open(tgr.filename, "rb") as in_fh:
         frame = tgr.frames[frame_index]
+        
+        # Check for padding (blank) frames
+        if frame.size == (0, 0,):
+            tgr.padding_frames.append(frame_index)
+            image = Image.new('RGBA',(1,1),(0,0,0,0))
+            return image
+        
         for idx in range(len(frame.lines)):
             #print(f'reading frame {frame_index} line {idx}')
             rawline = tgr.extractLine(in_fh, frame_index=frame_index, line_index=idx, increment=0, color=color, fx_error_fix=fx_error_fix)
