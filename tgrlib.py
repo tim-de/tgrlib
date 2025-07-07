@@ -434,8 +434,8 @@ class tgrFile:
         config.read(config_path)
         self.bits_per_px = int(config['BitDepth']['Depth'])
         self.hotspot = (int(config['HotSpot']['X']), int(config['HotSpot']['Y']))
+        self.size = (int(config['Size']['X']), int(config['Size']['Y']))
         self.bounding_box = (int(config['BoundingBox']['XMin']), int(config['BoundingBox']['YMin']), int(config['BoundingBox']['XMax']), int(config['BoundingBox']['YMax']))
-        
         if len(config['PaddingFrames']['FrameList']) > 0:
             self.padding_frames = list(map(int, config['PaddingFrames']['FrameList'].split(',')))
         #else:
@@ -472,6 +472,11 @@ class tgrFile:
                                 '; This will be 16 if the sprite uses direct color and 8 if it uses a color palette'))
         # hardcoded to 16 because repacking with a palette is not currently supported
         config.set('BitDepth', 'Depth', '16')
+        
+        config.add_section('Size')
+        config.set('Size', '; HotSpot is the position the sprite is displayed at in-game relative to the game object')
+        config.set('Size', 'X', str(self.size[0]))
+        config.set('Size', 'Y', str(self.size[1]))
         
         config.add_section('HotSpot')
         config.set('HotSpot', '; HotSpot is the position the sprite is displayed at in-game relative to the game object')
