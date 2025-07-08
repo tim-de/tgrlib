@@ -175,20 +175,23 @@ class PackWidget(QtWidgets.QWidget):
         layout.addWidget(self.settings)
         layout.addWidget(self.preview)
         self.setLayout(layout)
-        self.settings.select_folder.clicked.connect(self.selectFolder)
-        self.settings.select_folder.clicked.connect(self.preview.render)
+        self.settings.select_source.clicked.connect(self.selectSource)
+        self.settings.select_source.clicked.connect(self.preview.render)
         self.settings.pack_button.clicked.connect(self.packTGR)
     
-    def selectFolder(self):
-        filename = FileDialog(isFolder=True)
+    def selectSource(self):
+        from_sprite_sheet = self.settings.sprite_sheet.isChecked()
+        if from_sprite_sheet:
+            filename =  FileDialog(isFolder=False, filters=("Kohan Sprite Sheet (*.png)",))
+        else:
+            filename = FileDialog(isFolder=True)
         print(f'filename: {filename}')
         if filename:
             print('valid file')
             self.filename = Path(filename[0])
             print(self.filename)
-            self.settings.select_folder.setText(self.filename.stem)
-            # get frame count from header to update frame_index max value
-            self.tgr = tgrlib.tgrFile(self.filename)
+            self.settings.select_source.setText(self.filename.stem)
+            self.tgr = tgrlib.tgrFile(self.filename, from_sprite_sheet=from_sprite_sheet  )
             
     
     def packTGR(self):
@@ -212,8 +215,13 @@ class PackSettings(QtWidgets.QWidget):
         super(PackSettings, self).__init__(parent)
         layout = QtWidgets.QVBoxLayout()
         
-        self.select_folder = QtWidgets.QPushButton('Select Source Folder')
-        layout.addWidget(self.select_folder)
+        self.sprite_sheet = QtWidgets.QCheckBox(text="Pack from Sprite Sheet", parent=self)
+        self.sprite_sheet.setChecked(False)
+        self.sprite_sheet.stateChanged.connect(self.toggle_sprite_sheet_mode)
+        layout.addWidget(self.sprite_sheet)
+        
+        self.select_source = QtWidgets.QPushButton('Select Source Folder')
+        layout.addWidget(self.select_source)
         
         self.color = QtWidgets.QComboBox()
         self.color.addItems(['None', 'Red', 'Blue', 'Green', 'Black', 'Orange', 'Purple', 'Cyan', 'Brown', 'Light Gray', 'Gold', 'Dark Gray',])
@@ -249,6 +257,16 @@ class PackSettings(QtWidgets.QWidget):
             self.portrait_size.setEnabled(True)
         else:
             self.portrait_size.setEnabled(False)
+    
+    def toggle_sprite_sheet_mode(self, state):
+        # remove tgr when switching modes to avoid accidentally packing a sprite sheet as a directry
+        self.parent().tgr = None
+        self.parent().filename = None
+        self.parent().preview.render()
+        if state == 2:
+            self.select_source.setText('Select Sprite Sheet')
+        else:
+            self.select_source.setText('Select Source Folder')
 
 
 class Preview(QtWidgets.QWidget):
@@ -262,7 +280,8 @@ class Preview(QtWidgets.QWidget):
         
     def render(self):
         # prevent attempt to render when no file has been selected
-        if not hasattr(self.parent(), 'tgr'):
+        if not getattr(self.parent(), 'tgr', None):
+            self.sprite_display.clear()
             return
         print('Rendering thumbnail ... ', end='')
         mode = self.parent().tgr.read_from

@@ -606,7 +606,7 @@ class tgrFile:
         header_length = 3
         
         assert line_length <= 0x7FFA, f'f:{frame_index: >4} l:{line_index: >4} line length {line_length} exceeds 15 bit maximum'
-        assert offset <= 0xFF, f'f:{frame_index: >4} l:{line_index: >4} offset to first non-padding pixel exceeds 8 bit maximum'
+        assert offset <= 0xFF, f'f:{frame_index: >4} l:{line_index: >4} offset to first non-padding pixel {offset} exceeds 8 bit maximum'
         assert ct_pixels <= 0x7FFF, f'f:{frame_index: >4} l:{line_index: >4} pixel count {ct_pixels} exceeds 15 bit maximum'
         
         if ct_pixels > 0x7F:
