@@ -13,6 +13,10 @@ from io import BytesIO
 import tgrtool
 import tgrlib
 
+START_FRAME = 0
+FRAMES_PER_VIEW = 1
+CT_VIEWS = 2
+
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
@@ -276,7 +280,19 @@ class Preview(QtWidgets.QWidget):
         layout.addWidget(QtWidgets.QLabel('Preview'))
         self.sprite_display = QtWidgets.QLabel()
         layout.addWidget(self.sprite_display)
+        buttons = PreviewButtons(self)
+        layout.addWidget(buttons)
         self.setLayout(layout)
+        
+        self.current_frame = 0
+        
+        buttons.next_frame.clicked.connect(lambda: self.switch_frame("frame", absolute=False, step=1))
+        buttons.prev_frame.clicked.connect(lambda: self.switch_frame("frame", absolute=False, step=-1))
+        buttons.next_view.clicked.connect(lambda: self.switch_frame("view", absolute=False, step=1))
+        buttons.prev_view.clicked.connect(lambda: self.switch_frame("view", absolute=False, step=-1))
+        buttons.next_anim.clicked.connect(lambda: self.switch_frame("animation", absolute=False, step=1))
+        buttons.prev_anim.clicked.connect(lambda: self.switch_frame("animation", absolute=False, step=-1))
+        
         
     def render(self):
         # prevent attempt to render when no file has been selected
@@ -286,13 +302,14 @@ class Preview(QtWidgets.QWidget):
         print('Rendering thumbnail ... ', end='')
         mode = self.parent().tgr.read_from
         if mode == '.TGR':
-            self.parent().tgr.load()
+            if not self.parent().tgr.loaded:
+                self.parent().tgr.load()
             preview = tgrtool.unpack_frame(self.parent().tgr,
-                                         (self.parent().settings.frame_index.value() if self.parent().settings.single_frame.isChecked() else 0),
+                                         (self.parent().settings.frame_index.value() if self.parent().settings.single_frame.isChecked() else self.current_frame),
                                          color=self.parent().settings.color.currentIndex()+1,
                                          )
         elif mode in ('.PNG', '', ):
-            preview = self.parent().tgr.imgs[0]
+            preview = self.parent().tgr.imgs[self.current_frame]
             
         img_buffer = BytesIO()
         preview.save(img_buffer, format='PNG')
@@ -300,6 +317,140 @@ class Preview(QtWidgets.QWidget):
         pixmap.loadFromData(img_buffer.getvalue())
         self.sprite_display.setPixmap(pixmap)
         print('finished!')
+    
+    def switch_frame(self, scope: str="frame", absolute: bool=False, step: int=1):
+        """
+        Switches the current preview frame.
+
+        Parameters
+        ----------
+        scope : str, (default : "frame")
+            Specifies the scope of the step argument. Can be "animation", "view", or "frame"
+        absolute : bool, (default : False)
+            If True, step will be interpreted as absolute. If False, step will be interpreted as relative to the current position
+        step : int, optional
+            Specifies how many frames/views/animations to go forward or back.
+
+        Returns
+        -------
+        None.
+
+        """
+        init_frame = self.current_frame
+        init_anim, init_view = self.get_anim_data(init_frame)
+        match scope:
+            case "frame":
+                self.current_frame = self.constrain_frame(
+                    (step if absolute else self.current_frame + step))
+            case "view":
+                anim_index, view_index = self.get_anim_data(self.current_frame)
+                self.current_frame = self.change_view(anim_index, view_index + step)
+                # get the current view index and animation index from the current frame
+                # ignore absolute flag for now
+                # therefore, create new view index using step size and current view index.
+                # while the new index in negative, step back 1 animation and add the number of view in it to the new index
+                # while the new index is greater than the number of views in the current animation, subtract the current number of views and add 1 to the animation index
+                # return the 0th frame of the new view
+            case "animation":
+                anim_index, view_index = self.get_anim_data(self.current_frame)
+                self.current_frame = self.change_anim((step if absolute else anim_index + step))
+            case _:
+                print(f"invalid scope \"{scope}\" for switch_frame")
+        
+        tgrlib.log(1,
+                   "Info",
+                   "started at frame {0}, anim {1}, view {2}; ended at frame {3}, anim {4}, view {5}",
+                   init_frame,
+                   init_anim,
+                   init_view,
+                   self.current_frame,
+                   *self.get_anim_data(self.current_frame))
+        self.render()
+                
+                
+     
+    
+    def constrain_frame(self, frame_index):
+        if frame_index in range(self.parent().tgr.framecount):
+            return frame_index
+        elif frame_index >= self.parent().tgr.framecount:
+            return self.parent().tgr.framecount - 1
+        else:
+            return 0
+    
+    def change_view(self, anim_index, view_index, ):
+        anims = self.parent().tgr.animations
+        while view_index < 0:
+            if anim_index > 0:
+                anim_index -= 1
+                view_index += anims[anim_index][CT_VIEWS]
+            else:
+                view_index = 0 # prevents view index from staying negative when attempting to step below frame 0
+                break
+            
+        while view_index >= anims[anim_index][CT_VIEWS]:
+            #view_index -= anims[anim_index][CT_VIEWS]
+            if anim_index < len(anims) - 1:
+                view_index -= anims[anim_index][CT_VIEWS]
+                anim_index += 1
+            else:
+                view_index = anims[anim_index][CT_VIEWS] - 1
+                break
+            
+        return self.get_frame_from_view(anim_index, view_index)
+    
+    def change_anim(self, anim_index):
+        if anim_index in range(self.parent().tgr.anim_count):
+            return self.get_frame_from_view(anim_index, 0)
+        elif anim_index >= self.parent().tgr.anim_count:
+            return self.get_frame_from_view(self.parent().tgr.anim_count - 1, 0)
+        else:
+            return 0
+            
+    def get_anim_data(self, frame_index):
+        anims = self.parent().tgr.animations
+        for i in range(len(anims)):
+            cur_anim = anims[i]
+            next_anim = anims[i+1] if i+1 < len(anims) else None
+                
+            if (frame_index >= cur_anim[START_FRAME] and (next_anim is None or frame_index < next_anim[START_FRAME])):
+                view = int((frame_index - cur_anim[START_FRAME]) / cur_anim[FRAMES_PER_VIEW])
+                return (i, view)
+        return (len(anims) - 1, 0) # return a valid value in case something goes wrong
+    
+    #if animation start frame is less than current frame, check if the next start frame is greater or if this is the last anim:
+        #if so, this is the correct one
+        # else, iterate
+        
+    def get_frame_from_view(self, anim_index, view_index):
+        anim = self.parent().tgr.animations[anim_index]
+        return self.constrain_frame(anim[START_FRAME] + view_index * anim[FRAMES_PER_VIEW])
+            
+
+class PreviewButtons(QtWidgets.QWidget):
+    def __init__(self, parent):
+        super(PreviewButtons, self).__init__(parent)
+        layout = QtWidgets.QHBoxLayout()
+        self.play = QtWidgets.QPushButton("Play")
+        self.play.setCheckable(True)
+        self.play.setChecked(False)
+        self.next_frame = QtWidgets.QPushButton("Next Frame")
+        self.next_view = QtWidgets.QPushButton("Next View")
+        self.next_anim = QtWidgets.QPushButton("Next Animation")
+        self.prev_frame = QtWidgets.QPushButton("Prev Frame")
+        self.prev_view = QtWidgets.QPushButton("Prev View")
+        self.prev_anim = QtWidgets.QPushButton("Prev Animation")
+        layout.addWidget(self.prev_anim)
+        layout.addWidget(self.prev_view)
+        layout.addWidget(self.prev_frame)
+        layout.addWidget(self.play)
+        layout.addWidget(self.next_frame)
+        layout.addWidget(self.next_view)
+        layout.addWidget(self.next_anim)
+        self.setLayout(layout)
+        
+        
+
 
 
 def FileDialog(directory=None, forOpen=True, isFolder=False, multiple=False, filters=("Kohan Graphical Assets (*.tgr)",), default_name=None, default_extension=None):

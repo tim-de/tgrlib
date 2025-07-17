@@ -39,6 +39,10 @@ def resource_path(relative_path):
     #print(f'returning {base_path / relative_path}')
     return (base_path / relative_path).resolve()
 
+def log(verbosity: int, msg_type: str, message: str, *args):
+    if verbosity <= verbose:
+        print(f"[{msg_type}] " + message.format(*args))
+
 def read_line_length(in_fh: io.BufferedReader):
     rawlen = in_fh.read(2)
     if len(rawlen) < 2:
@@ -222,6 +226,7 @@ class tgrFile:
     which as a format is based on the IFF file structure
     """
     def __init__(self, filename: str, from_sprite_sheet: bool=False, config_path: str|None=None,):
+        self.loaded = False
         self.filename = Path(filename)
         self.read_from = self.filename.suffix.upper()
         match self.read_from:
@@ -302,6 +307,7 @@ class tgrFile:
                         else:
                             self.framesizes.append([img.size[0], img.size[1], 0, 0, img.size[0]-1, img.size[1]-1])
                         self.img_data[index] = img.getdata()
+        self.loaded = True
     
     def parse_sprite_sheet(self, config_path: str|None=None):
         # get image size from config
