@@ -5,7 +5,10 @@ Created on Mon Apr 28 14:36:45 2025
 @author: sceadu37
 """
 
-from PyQt5 import QtCore, QtWidgets, QtGui
+#from PyQt5 import QtCore, QtWidgets, QtGui
+from PyQt5.QtCore import QByteArray, QBuffer, QDir
+from PyQt5 import QtWidgets
+from PyQt5.QtGui import QPixmap, QMovie
 from pathlib import Path
 from argparse import Namespace
 from io import BytesIO
@@ -292,6 +295,7 @@ class Preview(QtWidgets.QWidget):
         buttons.prev_view.clicked.connect(lambda: self.switch_frame("view", absolute=False, step=-1))
         buttons.next_anim.clicked.connect(lambda: self.switch_frame("animation", absolute=False, step=1))
         buttons.prev_anim.clicked.connect(lambda: self.switch_frame("animation", absolute=False, step=-1))
+        buttons.play.clicked.connect(self.play_current_view)
         
         
     def render(self):
@@ -313,10 +317,36 @@ class Preview(QtWidgets.QWidget):
             
         img_buffer = BytesIO()
         preview.save(img_buffer, format='PNG')
-        pixmap = QtGui.QPixmap()
+        pixmap = QPixmap()
         pixmap.loadFromData(img_buffer.getvalue())
         self.sprite_display.setPixmap(pixmap)
         print('finished!')
+    
+    def play_current_view(self):
+        stream = self.make_gif_from_view()   
+        byte_array = QByteArray(stream.getvalue())
+        self.buffer = QBuffer()
+        self.buffer.setData(byte_array)
+        self.movie = QMovie(self.buffer, QByteArray())
+        self.sprite_display.setMovie(self.movie)
+        self.sprite_display.setMargin(20)
+        self.movie.start()
+        
+    
+    def make_gif_from_view(self):
+        tgr = self.parent().tgr
+        anim_index, view_index = self.get_anim_data(self.current_frame)
+        start_frame_index = self.get_frame_from_view(anim_index, view_index)
+        gif_length = tgr.animations[anim_index][FRAMES_PER_VIEW]
+        imgs = []
+        img_buffer = BytesIO()
+        for i in range(start_frame_index, start_frame_index+gif_length):
+            imgs.append(tgrtool.unpack_frame(tgr, i, color=self.parent().settings.color.currentIndex()+1))
+        imgs[0].save(img_buffer, format="gif", save_all=True, append_images=imgs[1:], duration=100, loop=0, disposal=2)
+        imgs[0].save("out.gif", save_all=True, append_images=imgs[1:], duration=100, loop=0, disposal=2)
+        return img_buffer
+        
+    
     
     def switch_frame(self, scope: str="frame", absolute: bool=False, step: int=1):
         """
@@ -367,8 +397,6 @@ class Preview(QtWidgets.QWidget):
                    *self.get_anim_data(self.current_frame))
         self.render()
                 
-                
-     
     
     def constrain_frame(self, frame_index):
         if frame_index in range(self.parent().tgr.framecount):
@@ -417,10 +445,6 @@ class Preview(QtWidgets.QWidget):
                 view = int((frame_index - cur_anim[START_FRAME]) / cur_anim[FRAMES_PER_VIEW])
                 return (i, view)
         return (len(anims) - 1, 0) # return a valid value in case something goes wrong
-    
-    #if animation start frame is less than current frame, check if the next start frame is greater or if this is the last anim:
-        #if so, this is the correct one
-        # else, iterate
         
     def get_frame_from_view(self, anim_index, view_index):
         anim = self.parent().tgr.animations[anim_index]
@@ -460,7 +484,7 @@ def FileDialog(directory=None, forOpen=True, isFolder=False, multiple=False, fil
     options |= QtWidgets.QFileDialog.DontUseCustomDirectoryIcons
     dialog = QtWidgets.QFileDialog()
 
-    dialog.setFilter(dialog.filter() | QtCore.QDir.Hidden)
+    dialog.setFilter(dialog.filter() | QDir.Hidden)
 
     # ARE WE TALKING ABOUT FILES OR FOLDERS
     if isFolder:
