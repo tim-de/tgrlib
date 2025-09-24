@@ -6,7 +6,7 @@ Created on Mon Apr 28 14:36:45 2025
 """
 
 #from PyQt5 import QtCore, QtWidgets, QtGui
-from PyQt5.QtCore import QByteArray, QBuffer, QDir
+from PyQt5.QtCore import QByteArray, QBuffer, QDir, QSize
 from PyQt5 import QtWidgets
 from PyQt5.QtGui import QPixmap, QMovie
 from pathlib import Path
@@ -198,7 +198,9 @@ class PackWidget(QtWidgets.QWidget):
             self.filename = Path(filename[0])
             print(self.filename)
             self.settings.select_source.setText(self.filename.stem)
-            self.tgr = tgrlib.tgrFile(self.filename, from_sprite_sheet=from_sprite_sheet  )
+            self.tgr = tgrlib.tgrFile(self.filename, from_sprite_sheet=from_sprite_sheet)
+            self.preview.current_frame = 0
+            self.preview.movie = None
             
     
     def packTGR(self):
@@ -282,20 +284,25 @@ class Preview(QtWidgets.QWidget):
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(QtWidgets.QLabel('Preview'))
         self.sprite_display = QtWidgets.QLabel()
+        self.sprite_display.setMinimumSize(QSize(100, 100))
+        self.sprite_display.setMaximumSize(QSize(300, 300))
+        #self.sprite_display.setStyleSheet("QLabel { background-color : red; color : blue; }")
         layout.addWidget(self.sprite_display)
-        buttons = PreviewButtons(self)
-        layout.addWidget(buttons)
+        self.buttons = PreviewButtons(self)
+        layout.addWidget(self.buttons)
         self.setLayout(layout)
         
         self.current_frame = 0
         
-        buttons.next_frame.clicked.connect(lambda: self.switch_frame("frame", absolute=False, step=1))
-        buttons.prev_frame.clicked.connect(lambda: self.switch_frame("frame", absolute=False, step=-1))
-        buttons.next_view.clicked.connect(lambda: self.switch_frame("view", absolute=False, step=1))
-        buttons.prev_view.clicked.connect(lambda: self.switch_frame("view", absolute=False, step=-1))
-        buttons.next_anim.clicked.connect(lambda: self.switch_frame("animation", absolute=False, step=1))
-        buttons.prev_anim.clicked.connect(lambda: self.switch_frame("animation", absolute=False, step=-1))
-        buttons.play.clicked.connect(self.play_current_view)
+        self.buttons.next_frame.clicked.connect(lambda: self.switch_frame("frame", absolute=False, step=1))
+        self.buttons.prev_frame.clicked.connect(lambda: self.switch_frame("frame", absolute=False, step=-1))
+        self.buttons.next_view.clicked.connect(lambda: self.switch_frame("view", absolute=False, step=1))
+        self.buttons.prev_view.clicked.connect(lambda: self.switch_frame("view", absolute=False, step=-1))
+        self.buttons.next_anim.clicked.connect(lambda: self.switch_frame("animation", absolute=False, step=1))
+        self.buttons.prev_anim.clicked.connect(lambda: self.switch_frame("animation", absolute=False, step=-1))
+        self.buttons.play.toggled.connect(self.play_current_view)
+        
+        self.movie = None
         
         
     def render(self):
@@ -322,15 +329,22 @@ class Preview(QtWidgets.QWidget):
         self.sprite_display.setPixmap(pixmap)
         print('finished!')
     
-    def play_current_view(self):
-        stream = self.make_gif_from_view()   
-        byte_array = QByteArray(stream.getvalue())
-        self.buffer = QBuffer()
-        self.buffer.setData(byte_array)
-        self.movie = QMovie(self.buffer, QByteArray())
-        self.sprite_display.setMovie(self.movie)
-        self.sprite_display.setMargin(20)
-        self.movie.start()
+    def play_current_view(self, state):
+        print(f"state: {state}")
+        if state == True:
+            if self.movie:
+                self.movie.setPaused(False)
+            else:
+                stream = self.make_gif_from_view()   
+                byte_array = QByteArray(stream.getvalue())
+                self.buffer = QBuffer()
+                self.buffer.setData(byte_array)
+                self.movie = QMovie(self.buffer, QByteArray())
+                self.sprite_display.setMovie(self.movie)
+                self.sprite_display.setMargin(20)
+            self.movie.start()
+        elif state == False:
+            self.movie.setPaused(True)
         
     
     def make_gif_from_view(self):
@@ -366,6 +380,8 @@ class Preview(QtWidgets.QWidget):
         None.
 
         """
+        self.buttons.play.setChecked(False)
+        self.movie = None
         init_frame = self.current_frame
         init_anim, init_view = self.get_anim_data(init_frame)
         match scope:
