@@ -48,7 +48,11 @@ def unpack(args: argparse.Namespace):
                              align_frames=(not args.no_align_frames))
         
         if args.sprite_sheet:
-            sprite_sheet.paste(image, box)
+            # make sure that the image isn't a padding frame
+            if image.size != (1,1):
+                sprite_sheet.paste(image, box)
+            # else paste nothing and continue
+                
         else:
             image.save(f"{image_name}/fram_{frame_index:04d}.png")
     
