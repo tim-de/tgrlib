@@ -213,7 +213,8 @@ class PackWidget(QtWidgets.QWidget):
                          output=Path(output[0]),
                          config=None,
                          verbose=1,
-                         source=self.filename)
+                         source=self.filename,
+                         sprite_sheet=(self.settings.sprite_sheet.isChecked()))
         
         print(f"args: {args}")
         tgrtool.pack(args)

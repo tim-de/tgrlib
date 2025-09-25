@@ -107,7 +107,7 @@ def unpack_frame(tgr, frame_index, color=1, fx_error_fix=False, align_frames=Tru
 
 def pack(args: argparse.Namespace):
     tgrlib.verbose = args.verbose
-    tgr = tgrlib.tgrFile(args.source)
+    tgr = tgrlib.tgrFile(args.source, from_sprite_sheet=args.sprite_sheet)
     
     if args.portrait != None:
         tgr.resize(args.portrait)
