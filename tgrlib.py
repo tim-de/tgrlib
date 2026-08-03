@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+from enum import Enum
+
 import ifflib
 import struct
 import io
@@ -113,6 +115,20 @@ class Pixel:
 
 shadow = Pixel(0, 0, 0, 0x80)
 transparency = Pixel(0x00, 0x00, 0x00, 0x00)
+
+class PlayerColor(Enum):
+    NONE = None
+    RED = 1
+    BLUE = 2
+    GREEN = 3
+    BLACK = 4
+    ORANGE = 5
+    PURPLE = 6
+    CYAN = 7
+    BROWN = 8
+    LIGHT_GRAY = 9
+    GOLD = 10
+    DARK_GRAY = 11
 
 def load_player_colors(filename: str = "data/COLORS.INI"):
     c_file = ConfigParser()

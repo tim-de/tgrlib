@@ -20,10 +20,25 @@ START_FRAME = 0
 FRAMES_PER_VIEW = 1
 CT_VIEWS = 2
 
+PlayerColorNames = {
+    "None": tgrlib.PlayerColor.NONE.value,
+    "Red": tgrlib.PlayerColor.RED.value,
+    "Blue": tgrlib.PlayerColor.BLUE.value,
+    "Green": tgrlib.PlayerColor.GREEN.value,
+    "Black": tgrlib.PlayerColor.BLACK.value,
+    "Orange": tgrlib.PlayerColor.ORANGE.value,
+    "Purple": tgrlib.PlayerColor.PURPLE.value,
+    "Cyan": tgrlib.PlayerColor.CYAN.value,
+    "Brown": tgrlib.PlayerColor.BROWN.value,
+    "Light Gray": tgrlib.PlayerColor.LIGHT_GRAY.value,
+    "Gold": tgrlib.PlayerColor.GOLD.value,
+    "Dark Gray": tgrlib.PlayerColor.DARK_GRAY.value
+}
+
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
-        self.setWindowTitle("tgrtool v1.1.1")
+        self.setWindowTitle("tgrtool v1.2.1")
         
         self.central_widget = QtWidgets.QWidget()
         central_layout = QtWidgets.QVBoxLayout()
@@ -95,7 +110,7 @@ class UnpackWidget(QtWidgets.QWidget):
             
     
     def unpackTGR(self):
-        args = Namespace(color=self.settings.color.currentIndex()+1,
+        args = Namespace(color=PlayerColorNames.get(self.settings.color.currentText(), tgrlib.PlayerColor.NONE),
                          no_align_frames=(not self.settings.align_frames.isChecked()),
                          fx_error_fix=self.settings.fx_error_fix.isChecked(),
                          single_frame=(self.settings.frame_index.value() if self.settings.single_frame.isChecked() else -1),
@@ -207,7 +222,7 @@ class PackWidget(QtWidgets.QWidget):
         output = FileDialog(forOpen=False, default_name=self.filename.stem, default_extension=".tgr")
         if not output:
             return
-        args = Namespace(color=(self.settings.color.currentIndex()+2 if self.settings.color.currentText() != 'None' else None),
+        args = Namespace(color=PlayerColorNames.get(self.settings.color.currentText(), tgrlib.PlayerColor.NONE),
                          no_crop=(not self.settings.crop.isChecked()),
                          portrait=(self.settings.portrait_size.currentText() if self.settings.portrait_mode.isChecked() else None),
                          output=Path(output[0]),
