@@ -241,7 +241,7 @@ class tgrFile:
     A class representing a .TGR game asset file,
     which as a format is based on the IFF file structure
     """
-    def __init__(self, filename: str, from_sprite_sheet: bool=False, config_path: str|None=None,):
+    def __init__(self, filename: str|Path, from_sprite_sheet: bool=False, config_path: str|Path|None=None,):
         self.loaded = False
         self.filename = Path(filename)
         self.read_from = self.filename.suffix.upper()
@@ -251,7 +251,7 @@ class tgrFile:
             case '.PNG':
                 self.imgs = []
                 if from_sprite_sheet:
-                    self.parse_sprite_sheet()
+                    self.parse_sprite_sheet(config_path)
                 else:
                     self.imgs.append(Image.open(self.filename))
             case '':
@@ -290,7 +290,7 @@ class tgrFile:
         self.frames = []
         self.padding_frames = []
 
-    def load(self, config_path: str|None=None, no_crop=False):
+    def load(self, config_path: str|Path|None=None, no_crop=False):
         match self.read_from:
             case '.TGR':
                 self.iff.load()
@@ -325,7 +325,7 @@ class tgrFile:
                         self.img_data[index] = img.getdata()
         self.loaded = True
     
-    def parse_sprite_sheet(self, config_path: str|None=None):
+    def parse_sprite_sheet(self, config_path: str|Path|None=None):
         # get image size from config
         sprite_sheet = Image.open(self.filename)
         if config_path is None:
@@ -502,7 +502,7 @@ class tgrFile:
             outbuf += [transparency for _ in range(line.pixel_length - len(outbuf))]
         return outbuf
     
-    def read_config(self, config_path: str|None=None):
+    def read_config(self, config_path: str|Path|None=None):
         config = ConfigParser()
         if config_path is None:
             config_path = (self.filename.parent if self.filename.is_file() else self.filename) / "sprite.ini"
@@ -515,7 +515,7 @@ class tgrFile:
         if len(config['PaddingFrames']['FrameList']) > 0:
             self.padding_frames = list(map(int, config['PaddingFrames']['FrameList'].split(',')))
         
-        self.animations = [(0, 0, 0, 0) for _ in range(6)]
+        self.animations = [(0, 0, 0,) for _ in range(6)]
         self.anim_count = 0
         anim_number_re = re.compile(r"Animation(\d{1,1})")
         
@@ -529,11 +529,10 @@ class tgrFile:
         
         self.animations = self.animations[:self.anim_count]
     
-    def write_config(self, config_path: str|None=None):
+    def write_config(self, config_path: str|Path|None=None):
         if config_path == None:
             config_path = f'{self.filename.stem}/sprite.ini'
         config = ConfigParser(dict_type=OrderedDict, allow_no_value=True)
-        config.optionxform = str
         config.add_section('Description')
         config.set('Description', (f'; This file contains metadata for the extracted sprite {self.filename.stem+self.filename.suffix}\n'+
                                    '; This allows the sprite to be repacked into a .TGR'))
@@ -545,7 +544,7 @@ class tgrFile:
         config.set('BitDepth', 'Depth', '16')
         
         config.add_section('Size')
-        config.set('Size', '; HotSpot is the position the sprite is displayed at in-game relative to the game object')
+        config.set('Size', '; Size is the width and height of each frame in the sprite')
         config.set('Size', 'X', str(self.size[0]))
         config.set('Size', 'Y', str(self.size[1]))
         
