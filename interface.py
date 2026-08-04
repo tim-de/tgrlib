@@ -107,8 +107,10 @@ class UnpackWidget(QtWidgets.QWidget):
                 print(f"Error: invalid file type: {self.iff.data.formtype}")
             self.tgr.read_header()
             self.settings.frame_index.setMaximum(self.tgr.framecount-1)
-            
-    
+            self.preview.current_frame = 0
+            self.preview.movie = None
+
+
     def unpackTGR(self):
         args = Namespace(color=PlayerColorNames.get(self.settings.color.currentText(), tgrlib.PlayerColor.NONE),
                          no_align_frames=(not self.settings.align_frames.isChecked()),
@@ -300,9 +302,7 @@ class Preview(QtWidgets.QWidget):
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(QtWidgets.QLabel('Preview'))
         self.sprite_display = QtWidgets.QLabel()
-        self.sprite_display.setMinimumSize(QSize(100, 100))
-        self.sprite_display.setMaximumSize(QSize(300, 300))
-        #self.sprite_display.setStyleSheet("QLabel { background-color : red; color : blue; }")
+        self.sprite_display.setStyleSheet("QLabel { border-style: solid; border-color: black; border-width: 1px; }")
         layout.addWidget(self.sprite_display)
         self.buttons = PreviewButtons(self)
         layout.addWidget(self.buttons)
@@ -340,10 +340,12 @@ class Preview(QtWidgets.QWidget):
             
         img_buffer = BytesIO()
         preview.save(img_buffer, format='PNG')
+        self.sprite_display.setMaximumSize(QSize(preview.width, preview.height))
         pixmap = QPixmap()
         pixmap.loadFromData(img_buffer.getvalue())
         self.sprite_display.setPixmap(pixmap)
-        print('finished!')
+        print(f"finished! (size: {preview.width}x{preview.height})")
+
     
     def play_current_view(self, state):
         print(f"state: {state}")
@@ -357,10 +359,13 @@ class Preview(QtWidgets.QWidget):
                 self.buffer.setData(byte_array)
                 self.movie = QMovie(self.buffer, QByteArray())
                 self.sprite_display.setMovie(self.movie)
-                self.sprite_display.setMargin(20)
+                #self.sprite_display.setMargin(20)
             self.movie.start()
+            self.buttons.play.setText("Pause")
         elif state == False:
-            self.movie.setPaused(True)
+            if self.movie:
+                self.movie.setPaused(True)
+            self.buttons.play.setText("Play")
         
     
     def make_gif_from_view(self):
